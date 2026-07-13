@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>プリフロップ レンジトレーナー (6-max)</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <main>
+      <h1>プリフロップ レンジトレーナー</h1>
+      <p class="sub">6-max / 100bb / キャッシュゲーム。テーブルの状況を見て、フォールド・コール・レイズを選ぶ。</p>
+
+      <div class="modes" id="modes"></div>
+      <p class="mode-hint" id="mode-hint"></p>
+
+      <div class="focus" id="focus" hidden>
+        <span class="focus-text" id="focus-text"></span>
+        <button class="focus-clear" id="focus-clear">解除</button>
+      </div>
+
+      <section class="card prompt" id="prompt">
+        <svg class="table-figure" id="table" viewBox="0 0 340 210" role="img" aria-label="テーブルの状況"></svg>
+
+        <div class="spot">
+          <div class="spot-title" id="spot-title"></div>
+          <div class="spot-note" id="spot-note"></div>
+        </div>
+
+        <div class="streak" id="streak">
+          連続正解<strong id="streak-current">0</strong>
+          <span id="streak-best"></span>
+        </div>
+
+        <div class="cards" id="cards"></div>
+        <div class="hand-text" id="hand">-</div>
+        <div class="combos" id="combos"></div>
+
+        <div class="actions" id="actions"></div>
+
+        <div class="verdict" id="verdict" hidden>
+          <div class="banner" id="banner">
+            <span class="banner-mark" id="banner-mark"></span>
+            <span class="banner-text" id="banner-text"></span>
+          </div>
+
+          <button class="next" id="btn-next">
+            次の問題
+            <span class="key">Space / Enter</span>
+          </button>
+
+          <div class="verdict-note" id="verdict-note"></div>
+
+          <details class="chart" open>
+            <summary>このスポットの全体レンジ</summary>
+            <div class="grid" id="grid" aria-hidden="true"></div>
+            <div class="legend" id="legend"></div>
+          </details>
+        </div>
+      </section>
+
+      <details class="card growth" open>
+        <summary>レンジの育ち方 — 5つの表を1つの形として覚える</summary>
+        <div class="growth-body">
+          <p class="growth-lead">
+            席が1つ進むごとに、レンジに<strong>何が足されるか</strong>を見る。
+            5枚の表を別々に暗記するより、1つの形が育っていく様子として覚えるほうが速い。
+          </p>
+
+          <div class="steps" id="steps"></div>
+
+          <div class="grid" id="growth-grid" aria-hidden="true"></div>
+
+          <div class="legend">
+            <span><span class="swatch grow-in"></span>すでに開けていた</span>
+            <span><span class="swatch grow-added"></span>この席で増えた</span>
+            <span><span class="swatch grow-removed"></span>この席で消えた</span>
+          </div>
+
+          <p class="growth-note" id="growth-note"></p>
+        </div>
+      </details>
+
+      <details class="card help">
+        <summary>解説 — ポジションと 3ベット</summary>
+        <div class="help-body">
+          <h3>ポジション = 行動する順番</h3>
+          <p>
+            席は行動順に UTG → HJ → CO → BTN → SB → BB と並びます。SB と BB は強制ベット (ブラインド) を出す席。
+            ボタンは1ハンドごとに1つ左へ回るので、<strong>自分のポジションは毎ハンド変わります</strong>。
+          </p>
+
+          <h3>なぜ順番がそこまで効くのか</h3>
+          <p>
+            <strong>理由1: 後ろに何人残っているか。</strong>
+            UTG で参加すると、まだ後ろに5人います。その誰かが AA を持っているかもしれない。BTN なら後ろは2人だけ。
+            後ろの人数が少ないほど、自分の手が一番強い確率が上がる。だから前の席ほど手を絞ります。
+          </p>
+          <p>
+            <strong>理由2: フロップ以降、ボタンが必ず最後に動く。</strong>
+            最後に動けるということは、全員の行動を見てから自分の行動を決められるということ。
+            最初に動く人は何の情報もなく決めるしかない。この差が毎ラウンド積み上がります。
+          </p>
+
+          <h3>各ポジションの RFI レンジ</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>ポジション</th>
+                <th>性格</th>
+                <th>開く割合</th>
+              </tr>
+            </thead>
+            <tbody id="help-ranges"></tbody>
+          </table>
+
+          <h3>SB だけがねじれている</h3>
+          <p>
+            SB は<strong>プリフロップでは遅い (有利) のに、フロップ以降は最初に動く (最悪)</strong> という席です。
+            後ろに BB しかいないので広く開けますが、その後がずっと不利。
+            レイズサイズが SB だけ <strong>3bb</strong> (他は 2.5bb) なのは、すでにブラインドを出している分 BB が安く見に来られてしまうので、少し高く払わせるためです。
+          </p>
+          <p>
+            そして<strong>レイズされた側に回ったとき、SB は常に 3ベットかフォールドの二択</strong>になります (コールを作らない)。
+            OOP な上に BB がまだ後ろに残っているので、安く見に行くと2人相手に不利な位置で戦うことになるからです。
+          </p>
+
+          <h3>BB が広く守れる理由</h3>
+          <p>
+            BB は<strong>すでにブラインドを払い込んでいる</strong>ので、コールに必要な追加額が他の席より小さい。
+            さらに<strong>最後に行動してその周を閉じられる</strong>ので、後ろから殴られる心配もない。
+            この2つのおかげで、BB は他の席なら降りる手でも守れます。
+          </p>
+          <p>
+            相手が後ろの席から開けるほど相手のレンジは弱いので、BB のディフェンスも広がります。
+            UTG のオープンには約27%しか抵抗しませんが、BTN のオープンには<strong>約半分の手で抵抗</strong>します。
+          </p>
+
+          <h3>覚え方 — 169個を覚えようとしない</h3>
+          <p>
+            <strong>ペアは全席で全部レイズ。</strong> 22+ が5席とも共通なので、13ハンドは思考ゼロ。
+          </p>
+          <p>
+            <strong>スーテッドエース (Axs) は UTG 以外すべてレイズ。</strong>
+            HJ 以降は A2s まで無条件。例外は UTG だけで、そこは A9s 以上 + A5s / A4s / A3s。これで12ハンド片付く。
+          </p>
+          <p>
+            残るスーテッドは<strong>「キッカーをどこまで下げられるか」の数字</strong>だけ覚える。
+            丸暗記ではなく形で捉える: <strong>UTG は全部9前後、HJ と CO は8前後、BTN と SB は下まで落とす</strong>。
+          </p>
+          <table>
+            <thead>
+              <tr><th>スーテッド</th><th>UTG</th><th>HJ</th><th>CO</th><th>BTN</th><th>SB</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Kxs</td><td>9</td><td>7</td><td>4</td><td>2</td><td>2</td></tr>
+              <tr><td>Qxs</td><td>9</td><td>8</td><td>8</td><td>3</td><td>4</td></tr>
+              <tr><td>Jxs</td><td>9</td><td>8</td><td>8</td><td>4</td><td>6</td></tr>
+              <tr><td>Txs</td><td>8</td><td>8</td><td>7</td><td>6</td><td>6</td></tr>
+            </tbody>
+          </table>
+
+          <p>
+            <strong>本当の分かれ目はオフスーツ。</strong>ここだけ丁寧にやる価値があります。
+          </p>
+          <table>
+            <thead>
+              <tr><th>オフスーツ</th><th>UTG</th><th>HJ</th><th>CO</th><th>BTN</th><th>SB</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Axo</td><td>AJo+</td><td>ATo+</td><td>A9o+</td><td>A4o+</td><td>A2o+</td></tr>
+              <tr><td>Kxo</td><td>KQo</td><td>KJo+</td><td>KTo+</td><td>K8o+</td><td>K9o+</td></tr>
+              <tr><td>Qxo</td><td>–</td><td>QJo</td><td>QTo+</td><td>Q9o+</td><td>Q9o+</td></tr>
+              <tr><td>Jxo</td><td>–</td><td>–</td><td>JTo</td><td>J9o+</td><td>J9o+</td></tr>
+            </tbody>
+          </table>
+          <p>
+            <strong>UTG はオフスーツをほぼ捨てている</strong> (AJo 以上と KQo だけ)。
+            BTN になると急に Q9o や J9o まで開ける。オフスーツは「後ろの人数が減って初めて許される手」です。
+          </p>
+          <p>
+            一番効く一言は <strong>「スーテッドは2〜3席ぶん格上げ」</strong>。
+            J9s は UTG から開けるのに、J9o は BTN まで待たないと開けられない。
+            同じ J9 でも、スート1つで3席ぶん違う。迷ったら<strong>まずスーテッドかどうかを確認する</strong>癖をつけると事故が減ります。
+          </p>
+
+          <h3>境界特訓モードとは</h3>
+          <p>
+            169 ハンドのうち、<strong>大半は考える必要がありません</strong>。AA はどこからでもレイズ、72o はどこからでもフォールド。
+            本当に知識が要るのは「<strong>ポジションによって答えが変わるハンド</strong>」だけです。
+            RFI では <code id="boundary-count"></code> ハンドがそれに該当し、境界特訓モードはそこだけを一様に出題します。
+          </p>
+
+          <h3>マトリクスの読み方</h3>
+          <p>
+            答えたあとに出る 13×13 の表は、ポーカーの標準的な書き方です。
+            <strong>左上から右下への対角線</strong>がポケットペア、<strong>その右上</strong>がスーテッド (同じスート = <code>s</code>)、
+            <strong>左下</strong>がオフスーツ (違うスート = <code>o</code>)。色は下の凡例のとおりで、黄色い枠が今出題されたハンドです。
+          </p>
+
+          <h3>combos の話</h3>
+          <p>
+            同じ AK でも、<strong>スーテッドは4通り、オフスーツは12通り</strong>の組み合わせがあります (スートの選び方の数)。ペアは6通り。
+            つまり実戦では AKo の方が AKs より3倍よく出る。
+            境界特訓以外のモードは<strong>その頻度どおりに出題</strong>しています。均等に出すとペアばかり来て練習になりません。
+          </p>
+
+          <h3>レンジの出どころ</h3>
+          <p>
+            RFI は公開されている 6-max 100bb のチャート、vs RFI (3ベット) は GTO ソルバー由来のチャートを機械的に抽出し、
+            別ソースと突き合わせて検算したものです。
+            ソルバーが<strong>混合戦略を取るハンドは、頻度の高い方の action に丸めて</strong>あります (1ハンド1答にするため)。
+            そのぶん境界の細部は本来より少し堅く、そこは「流派の差」の範囲です。
+          </p>
+        </div>
+      </details>
+
+      <section class="card">
+        <h2>成績</h2>
+
+        <svg class="spark" id="spark" viewBox="0 0 320 56" preserveAspectRatio="none" role="img" aria-label="直近の正解率の推移"></svg>
+
+        <h3 class="stats-head">RFI (自分から開ける)</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>状況</th>
+              <th>出題</th>
+              <th>基準</th>
+              <th>正解率</th>
+            </tr>
+          </thead>
+          <tbody id="stats-rfi"></tbody>
+        </table>
+
+        <h3 class="stats-head">vs RFI (レイズされた側)</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>状況</th>
+              <th>出題</th>
+              <th>基準</th>
+              <th>正解率</th>
+            </tr>
+          </thead>
+          <tbody id="stats-vs"></tbody>
+        </table>
+
+        <p class="stats-note">
+          <strong>行をタップすると、その状況だけを狙い撃ちで練習</strong>できます。弱点を潰すときに使う。
+        </p>
+
+        <p class="stats-note">
+          <strong>基準</strong> = その状況で「降りるべき手」の割合。
+          何も考えずフォールドを押すだけでこの近辺は取れてしまうので、<strong>ここを超えて初めて学習が起きている</strong>。
+          (実際にフォールド連打すると、ミスした手が復習キューで返ってくるぶん基準より下がります。)
+          目標は各状況 <strong>95%</strong> (緑)。赤は基準割れ。
+        </p>
+
+        <div class="leaks" id="leaks" hidden>
+          <p class="leak-tendency" id="leak-tendency"></p>
+          <ul class="leak-list" id="leak-list"></ul>
+        </div>
+
+        <div class="controls">
+          <button id="btn-reset">成績をリセット</button>
+          <button id="btn-sound">効果音: ON</button>
+        </div>
+      </section>
+    </main>
+
+    <script src="js/ranges.js"></script>
+    <script src="js/spots.js"></script>
+    <script src="js/cards.js"></script>
+    <script src="js/stats.js"></script>
+    <script src="js/quiz.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>
