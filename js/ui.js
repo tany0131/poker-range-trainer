@@ -93,6 +93,14 @@ const el = {
   refStats: document.getElementById('ref-stats'),
   refGrid: document.getElementById('ref-grid'),
   refLegend: document.getElementById('ref-legend'),
+  refPrompt: document.getElementById('ref-prompt'),
+  refAnswer: document.getElementById('ref-answer'),
+  refAnswerHead: document.getElementById('ref-answer-head'),
+  refAnswerWhy: document.getElementById('ref-answer-why'),
+  refAnswerTip: document.getElementById('ref-answer-tip'),
+  faqSearch: document.getElementById('faq-search'),
+  faqBody: document.getElementById('faq-body'),
+  faqCount: document.getElementById('faq-count'),
 }
 
 const NS = 'http://www.w3.org/2000/svg'
@@ -312,7 +320,8 @@ const renderQuestion = (state, question, onAnswer) => {
 
 // ---- 判定 ----
 
-const renderGridInto = (target, drill, currentHand = null) => {
+// onPick を渡すとマスがタップできるようになる (定石ビューアの「この手なんで？」)。
+const renderGridInto = (target, drill, currentHand = null, onPick = null) => {
   target.innerHTML = ''
   for (const hand of ALL_HANDS) {
     const action = drill.answerFor(hand)
@@ -320,6 +329,10 @@ const renderGridInto = (target, drill, currentHand = null) => {
     cell.className = `cell ${ACTION_COLORS[action]}`
     if (currentHand !== null && hand === currentHand) cell.classList.add('current')
     cell.textContent = hand
+    if (onPick) {
+      cell.classList.add('pickable')
+      cell.addEventListener('click', () => onPick(hand))
+    }
     target.appendChild(cell)
   }
 }
@@ -691,7 +704,28 @@ const renderRefButtons = (container, drills, selectedKey, onSelect, labelOf) => 
   }
 }
 
-const renderReference = (selectedKey, onSelect) => {
+// マスをタップしたときの「この手はなぜ？」。
+// 出題を待たなくても、19 スポット × 169 ハンドのどれでもコーチ文を引ける。
+const renderRefAnswer = (drill, hand) => {
+  if (!hand) {
+    el.refAnswer.hidden = true
+    el.refPrompt.hidden = false
+    return
+  }
+
+  const action = drill.answerFor(hand)
+  const advice = coachFor(drill, hand)
+
+  el.refPrompt.hidden = true
+  el.refAnswer.hidden = false
+  el.refAnswer.className = `ref-answer ${ACTION_COLORS[action]}-tint`
+
+  el.refAnswerHead.textContent = `${drill.label} で ${hand} は ${ACTION_LABELS[action]}`
+  el.refAnswerWhy.textContent = advice.why
+  el.refAnswerTip.textContent = advice.tip
+}
+
+const renderReference = (selectedKey, pickedHand, onSelect, onPick) => {
   const drill = DRILL_BY_KEY[selectedKey]
 
   renderRefButtons(el.refRfi, RFI_DRILLS, selectedKey, onSelect, (d) => d.hero)
@@ -701,8 +735,41 @@ const renderReference = (selectedKey, onSelect) => {
   el.refNote.textContent = drill.note
   el.refStats.textContent = refStatsText(drill)
 
-  renderGridInto(el.refGrid, drill)
+  renderGridInto(el.refGrid, drill, pickedHand, onPick)
   renderLegendInto(el.refLegend, drill)
+  renderRefAnswer(drill, pickedHand)
+}
+
+// ---- よくある質問 ----
+
+const renderFaq = (query = '') => {
+  const entries = searchFaq(query)
+  el.faqCount.textContent = String(FAQ.length)
+  el.faqBody.innerHTML = ''
+
+  if (entries.length === 0) {
+    const empty = document.createElement('p')
+    empty.className = 'glossary-empty'
+    empty.textContent = `「${query}」に当たる質問はありません。`
+    el.faqBody.appendChild(empty)
+    return
+  }
+
+  for (const entry of entries) {
+    const item = document.createElement('details')
+    item.className = 'faq-item'
+
+    const question = document.createElement('summary')
+    question.textContent = entry.q
+    item.appendChild(question)
+
+    const answer = document.createElement('p')
+    answer.className = 'faq-answer'
+    answer.textContent = entry.a
+    item.appendChild(answer)
+
+    el.faqBody.appendChild(item)
+  }
 }
 
 const renderHelp = () => {

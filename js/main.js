@@ -98,6 +98,7 @@ el.reset.addEventListener('click', () => {
 })
 
 el.glossarySearch.addEventListener('input', () => renderGlossary(el.glossarySearch.value))
+el.faqSearch.addEventListener('input', () => renderFaq(el.faqSearch.value))
 
 el.sound.addEventListener('click', () => {
   commit({ ...state, soundOn: !state.soundOn })
@@ -132,17 +133,30 @@ const selectGrowthStep = (index) => {
   renderGrowth(growthStep, selectGrowthStep)
 }
 
-// 定石ビューアの選択スポット。これも一時的な状態なので保存しない。
+// 定石ビューアの選択スポットと、タップされたマス。一時的な状態なので保存しない。
 let referenceKey = DRILLS[0].key
-const selectReference = (drillKey) => {
+let referenceHand = null
+
+const drawReference = () => renderReference(referenceKey, referenceHand, selectReference, pickReferenceHand)
+
+// スポットを切り替えたらタップは解除する (別スポットの答えが残ると混乱する)
+function selectReference(drillKey) {
   referenceKey = drillKey
-  renderReference(referenceKey, selectReference)
+  referenceHand = null
+  drawReference()
+}
+
+// 同じマスをもう一度タップすると解除 (トグル)
+function pickReferenceHand(hand) {
+  referenceHand = referenceHand === hand ? null : hand
+  drawReference()
 }
 
 renderHelp()
 renderGlossary()
+renderFaq()
 renderGrowth(growthStep, selectGrowthStep)
-renderReference(referenceKey, selectReference)
+drawReference()
 renderModes(state, selectMode)
 renderDashboard(state, selectFocus)
 renderDaily(state, startDailyTask)

@@ -113,7 +113,7 @@
         <div class="reference-body">
           <p class="reference-lead">
             出題を待たずに、覚えたいスポットのチャートを確認する。
-            ここで眺めてから、成績表の行タップで同じスポットを狙い撃ちすると定着が速い。
+            <strong>マスをタップすると、その手がなぜその答えなのかが出ます</strong> — 19 スポット × 169 ハンド、どれでも。
           </p>
 
           <div class="ref-group">
@@ -131,6 +131,40 @@
 
           <div class="grid" id="ref-grid" aria-hidden="true"></div>
           <div class="legend" id="ref-legend"></div>
+
+          <p class="ref-prompt" id="ref-prompt">
+            気になるマスをタップすると、ここに「なぜ」と「覚え方」が出ます。
+          </p>
+
+          <div class="ref-answer" id="ref-answer" hidden>
+            <p class="ref-answer-head" id="ref-answer-head"></p>
+            <div class="coach-row">
+              <span class="coach-label">なぜ</span>
+              <p class="coach-text" id="ref-answer-why"></p>
+            </div>
+            <div class="coach-row">
+              <span class="coach-label">覚え方</span>
+              <p class="coach-text" id="ref-answer-tip"></p>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="card faq">
+        <summary>よくある質問 — <span id="faq-count"></span> 件</summary>
+        <div class="faq-wrap">
+          <p class="faq-lead">
+            レンジ表を見ていて「なんで？」となりやすいところ。
+            ここに無い手は、上の<strong>「定石を見る」でマスをタップすれば個別に答えが出ます</strong>。
+          </p>
+          <input
+            class="glossary-search"
+            id="faq-search"
+            type="search"
+            placeholder="質問を検索 (答えの中身からも引けます)"
+            aria-label="質問を検索"
+          />
+          <div class="faq-body" id="faq-body"></div>
         </div>
       </details>
 
@@ -302,6 +336,47 @@
             サイズの選択肢に「追加 ◯bb」と出ているのがこれです。
           </p>
 
+          <h3>3ベットレンジは「強さの順」ではない (ポラライズド)</h3>
+          <p>
+            レンジ表を見ると必ず引っかかる場所があります。CO のレイズに BTN が守るとき、
+            <strong>AQo はコールなのに、格下の AJo が 3ベット</strong>。逆転しているように見えますが、これが正解です。
+          </p>
+          <p>
+            3ベットレンジは強い順に上から取るのではなく、<strong>バリューとブラフの両端を取って、真ん中をコールに残す</strong>形
+            (ポラライズド) になっています。
+          </p>
+          <table>
+            <thead>
+              <tr><th>手</th><th>答え</th><th>役割</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>AKo</td><td>3ベット</td><td>バリュー (上端)</td></tr>
+              <tr><td>AQo</td><td><strong>コール</strong></td><td>真ん中 — 3ベットが一番もったいない</td></tr>
+              <tr><td>AJo / ATo</td><td>3ベット</td><td>ブラフ (下端・ブロッカー)</td></tr>
+            </tbody>
+          </table>
+          <p>
+            <strong>AQo を 3ベットすると損。</strong> 相手が続けてくるのは AK・QQ+ ばかりで、こちらが劣勢。
+            そして AQo が勝っている KJ・QT・弱い Ax は<strong>全部降りてしまう</strong>。
+            強い相手だけ残して弱い相手を追い出す、最悪の使い方です。コールなら弱い手を卓に残したまま、ポジションで殴れます。
+          </p>
+          <p>
+            <strong>AJo はコールでは分が悪い。</strong> A や J でトップペアを作っても、相手の AQ・AK にドミネートされて
+            キッカー負けしがち。ところが<strong>ブロッカーとしては最良</strong>で、A が相手の AA / AK / AQ を、
+            J が JJ / AJ / KJ を減らします。つまり「4ベットしてくる手」をピンポイントで削れる。
+            だから「コールには弱すぎるが、ブラフとしては最良」の枠に回ります。
+          </p>
+          <p>
+            <strong>強さではなく役割の問題</strong>だと分かれば、同じ形がスーテッドにもあることに気づきます。
+            CO→BTN では AJs・ATs・A9s がコールで、その下の A8s・A7s・A6s と A4s・A3s が 3ベット。同じバーベル型です。
+          </p>
+          <p>
+            ついでに覚えておくと強い事実: <strong>BTN のコールレンジに入るオフスーツは AQo ただ1つ</strong>
+            (UTG / HJ / CO のどのレイズに対しても)。BTN がフラットすると後ろの SB / BB にスクイーズされるので、
+            フラットは本当に強い手だけに絞るためです。BB のコールレンジには AJo も KJo も QTo も入るのと対照的で、
+            <strong>同じ「コール」でも席が違えば意味が違う</strong>好例になっています。
+          </p>
+
           <h3>ベットサイズの覚え方 — 手ではなく位置で決まる</h3>
           <p>
             サイズはレンジと違って<strong>「どの手か」に依存しません</strong>。AA でも A5s でも同じ額で打つ。
@@ -460,6 +535,7 @@
     <script src="js/stats.js"></script>
     <script src="js/daily.js"></script>
     <script src="js/glossary.js"></script>
+    <script src="js/faq.js"></script>
     <script src="js/quiz.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/ui.js"></script>

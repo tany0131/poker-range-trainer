@@ -13,6 +13,57 @@ const rfiOpeners = (hand) => rfiOpenMap(hand).filter(([, open]) => open).map(([h
 // ヒーローの後ろに残っている人数 (プリフロップの行動順ベース)
 const playersBehind = (hero) => POSITIONS.length - 1 - POSITION_INDEX[hero]
 
+// ---- ポラライズ (3ベットレンジは強さの順ではない) ----
+//
+// AQo がコールなのに AJo が 3ベット、という「逆転」が全 BTN スポットで起きる。
+// これはミスでも丸めの事故でもなく、3ベットレンジが バリュー + ブラフ の両端を取り、
+// 真ん中の「コールに一番向いた手」をフラットに残すため (ポラライズド)。
+//
+// 逆転を機械的に見つけるために、同じ高いカード・同じスーテッドネスで
+// キッカーだけが違う手 (AQo に対する AJo) を「兄弟」として比べる。
+// ペアは高い/低いペアどうしを兄弟とみなす。
+
+const kickerSiblings = (hand, direction) => {
+  const step = direction === 'stronger' ? -1 : 1
+
+  if (isPair(hand)) {
+    const out = []
+    for (let i = RANK_IDX[hand[0]] + step; i >= 0 && i < RANKS.length; i += step) {
+      out.push(RANKS[i] + RANKS[i])
+    }
+    return out
+  }
+
+  const [high, low, suitedness] = hand
+  const out = []
+  for (let i = RANK_IDX[low] + step; i > RANK_IDX[high] && i < RANKS.length; i += step) {
+    out.push(high + RANKS[i] + suitedness)
+  }
+  return out
+}
+
+// この手より強い兄弟がコールに回っているか (= この手はコール域より下のブラフ枠)
+const calledAbove = (drill, hand) =>
+  kickerSiblings(hand, 'stronger').find((sibling) => drill.sets.call.has(sibling)) || null
+
+// この手より弱い兄弟が 3ベットに回っているか (= この手はフラットに残す「真ん中」)
+const threebetBelow = (drill, hand) =>
+  kickerSiblings(hand, 'weaker').find((sibling) => drill.sets.threebet.has(sibling)) || null
+
+// ブラフ枠に選ばれる理由。エース・ブロードウェイはブロッカー、それ以外は化ける余地 (セミブラフ)。
+const bluffStrength = (hand) => {
+  if (hand[0] === 'A' && isSuited(hand) && WHEEL_KICKERS.has(hand[1])) {
+    return `A を 1 枚ブロックして相手の AA / AK を減らしつつ、コールされてもフラッシュやホイール (A-2-3-4-5) に化ける — ブラフに最も向いた形`
+  }
+  if (hand[0] === 'A') {
+    return `A が相手の AA / AK / AQ をブロックし、${hand[1]} が ${hand[1]}${hand[1]} や ${hand[0]}${hand[1]} をブロックする — 4ベットしてくる手をピンポイントで削れる`
+  }
+  if (isBroadwayRank(hand[0]) && isBroadwayRank(hand[1])) {
+    return `${hand[0]} と ${hand[1]} が相手のブロードウェイや強いペアをブロックする`
+  }
+  return `スーテッドなぶん、コールされてもフラッシュやストレートに化ける (セミブラフ)`
+}
+
 // ---- RFI: なぜ ----
 
 const rfiWhy = (drill, hand) => {
@@ -77,6 +128,13 @@ const vsRfiThreebetWhy = (drill, hand) => {
   const sbSuffix =
     drill.hero === 'SB' ? ' SB にコールはない (3ベット・オア・フォールド) ので、続けるなら 3ベット一択。' : ''
 
+  // 「自分より強い手がコールなのに、自分は 3ベット」= ポラライズの下側 (ブラフ枠)。
+  // ここを「バリューだから 3ベット」と説明すると、真逆のことを覚えさせてしまう。
+  const above = calledAbove(drill, hand)
+  if (above) {
+    return `強さの順なら ${above} のほうが上なのに、${above} はコールで ${hand} が 3ベット — 逆転して見える。3ベットレンジは強さの順ではなく、バリューとブラフの両端を取る形 (ポラライズド) だから。${hand} は ${above} に一段見劣りするのでコールでは分が悪いが、${bluffStrength(hand)}。「コールには弱すぎるが、ブラフとしては最良」の枠に入る。${sbSuffix}`
+  }
+
   if (hand[0] === 'A' && isSuited(hand) && WHEEL_KICKERS.has(hand[1])) {
     return `${hand} はバリューではなくブラフ枠。A を 1 枚ブロックして相手の AA / AK を減らしつつ、コールされてもフラッシュやホイールを狙える。${sbSuffix}`
   }
@@ -89,9 +147,23 @@ const vsRfiThreebetWhy = (drill, hand) => {
 }
 
 const vsRfiCallWhy = (drill, hand) => {
+  // 「自分より弱い手が 3ベットなのに、自分はコール」= ポラライズの真ん中。
+  // 「3ベットするほど強くない」と説明すると嘘になる (弱いのではなく、3ベットが一番もったいない)。
+  const below = threebetBelow(drill, hand)
+  if (below) {
+    // 席ごとの「なぜコールが成立するのか」は必ず残す (BB のオッズ / IP のポジション)。
+    const edge =
+      drill.hero === 'BB'
+        ? 'BB はすでに 1bb 払っていて追加が安く、最後に行動して周を閉じられる'
+        : `${drill.hero} にはポジションがあるので、フロップ以降つねに相手の行動を見てから動ける`
+
+    return `${hand} は弱いからコール、ではない。3ベットが一番もったいない使い方だから残している。3ベットすると ${drill.raiser} は上位の手 (AK / QQ+ 級) で 4ベットしてきて、${hand} が勝っている弱い手は全部降りてしまう — 強い相手だけ残る。コールなら弱い手を卓に残したまま戦える。${edge}。その証拠に、${hand} より弱い ${below} のほうがブラフ枠として 3ベットに回っている。3ベットレンジは強さの順ではない (ポラライズド)。`
+  }
+
   if (drill.hero === 'BB') {
     return `BB はすでに 1bb 払っていて追加が安く、この周を最後に閉じられる。だから他の席なら降りる ${hand} でも守れる。3ベットするほどの強さはない。`
   }
+
   return `${drill.hero} にはポジションがあるので、3ベットするほど強くない ${hand} をコールで参加させられる。フロップ以降つねに相手の行動を見てから動ける。`
 }
 

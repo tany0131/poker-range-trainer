@@ -103,6 +103,7 @@ const SCRIPTS = [
   'js/stats.js',
   'js/daily.js',
   'js/glossary.js',
+  'js/faq.js',
   'js/quiz.js',
   'js/audio.js',
   'js/ui.js',
@@ -773,6 +774,94 @@ check(sizeCoachOop.includes('OOP') && sizeCoachOop.includes('4x'), 'コーチ �
 const sizeCoachIp = run(`coachFor(DRILL_BY_KEY['SIZE_CO_BTN'], null).why`)
 check(sizeCoachIp.includes('IP') && sizeCoachIp.includes('3x'), 'コーチ サイズ: IP は 3x と説明する', sizeCoachIp)
 
+// ---- ポラライズ (3ベットは強さの順ではない) ----
+//
+// AQo コール / AJo 3ベット の逆転は全 BTN スポットで起きる本物の構造。
+// コーチがこれを「バリューだから 3ベット」と説明すると真逆を教えることになるので、
+// 逆転の検出と説明をここで固定する。
+
+const polarizedSpots = run(`['UTG_BTN', 'HJ_BTN', 'CO_BTN'].map((key) => {
+  const d = DRILL_BY_KEY[key]
+  return [key, d.answerFor('AKo'), d.answerFor('AQo'), d.answerFor('AJo')]
+})`)
+for (const [key, ako, aqo, ajo] of polarizedSpots) {
+  check(
+    ako === 'threebet' && aqo === 'call' && ajo === 'threebet',
+    `${key}: AKo 3bet / AQo コール / AJo 3bet の逆転がある`,
+    `${ako} / ${aqo} / ${ajo}`,
+  )
+}
+
+// BTN のコールレンジに入るオフスーツは AQo だけ (解説で言い切っている事実)
+const btnFlatOffsuit = run(`['UTG_BTN', 'HJ_BTN', 'CO_BTN'].map((key) =>
+  [key, [...DRILL_BY_KEY[key].sets.call].filter((h) => h.endsWith('o'))]
+)`)
+for (const [key, offsuits] of btnFlatOffsuit) {
+  check(
+    offsuits.length === 1 && offsuits[0] === 'AQo',
+    `${key}: BTN のフラットレンジのオフスーツは AQo だけ`,
+    offsuits.join(','),
+  )
+}
+
+// 逆転の検出そのもの
+check(run(`calledAbove(DRILL_BY_KEY['CO_BTN'], 'AJo') === 'AQo'`), '逆転検出: AJo の上に コールの AQo がいる')
+check(run(`threebetBelow(DRILL_BY_KEY['CO_BTN'], 'AQo') === 'AJo'`), '逆転検出: AQo の下に 3ベットの AJo がいる')
+check(run(`calledAbove(DRILL_BY_KEY['CO_BTN'], 'AKo') === null`), '逆転検出: AKo の上にコールはいない (純粋なバリュー)')
+check(run(`calledAbove(DRILL_BY_KEY['CO_BTN'], 'A8s') === 'A9s'`), '逆転検出: スーテッドにも同じ逆転がある (A9s コール / A8s 3bet)')
+
+// コーチが逆転を「バリューだから」と説明していないこと (これが一番まずい誤答)
+const ajoWhy = run(`coachFor(DRILL_BY_KEY['CO_BTN'], 'AJo').why`)
+check(
+  !ajoWhy.includes('バリュー寄りの 3ベット'),
+  'コーチ: AJo の 3ベットを「バリュー寄り」と説明しない (真逆を教えてしまう)',
+  ajoWhy.slice(0, 40),
+)
+check(ajoWhy.includes('AQo') && ajoWhy.includes('ブロック'), 'コーチ: AJo は AQo との逆転とブロッカーで説明する', ajoWhy.slice(0, 60))
+
+const aqoWhy = run(`coachFor(DRILL_BY_KEY['CO_BTN'], 'AQo').why`)
+check(
+  !aqoWhy.includes('3ベットするほど強くない'),
+  'コーチ: AQo のコールを「3ベットするほど強くない」と説明しない (嘘になる)',
+  aqoWhy.slice(0, 40),
+)
+check(aqoWhy.includes('AJo') && aqoWhy.includes('4ベット'), 'コーチ: AQo は 4ベットされる不利と AJo との役割分担で説明する', aqoWhy.slice(0, 60))
+
+// バリューの説明は残っている (何でもかんでも逆転扱いにしていない)
+check(
+  run(`coachFor(DRILL_BY_KEY['CO_BTN'], 'AKo').why`).includes('バリュー'),
+  'コーチ: 本物のバリュー (AKo) はバリューと説明する',
+)
+
+// 全ドリル × 全ハンドで、逆転検出が例外を出さない
+check(
+  run(`(() => {
+    for (const drill of VS_RFI_DRILLS) {
+      for (const hand of UNIQUE_HANDS) {
+        calledAbove(drill, hand)
+        threebetBelow(drill, hand)
+      }
+    }
+    return true
+  })()`),
+  '逆転検出が全ドリル × 全ハンドで落ちない',
+)
+
+// ---- よくある質問 ----
+
+check(run('FAQ.length') >= 10, 'よくある質問が十分な数ある', `${run('FAQ.length')} 件`)
+check(
+  run(`FAQ.every((e) => e.q && e.a && e.a.length > 80)`),
+  '全質問に (使いものになる長さの) 答えがある',
+)
+check(
+  run(`FAQ.some((e) => e.q.includes('AQo') && e.q.includes('AJo'))`),
+  'よくある質問に AQo / AJo の逆転が入っている',
+)
+check(run(`searchFaq('').length`) === run('FAQ.length'), '検索が空なら全件返す')
+check(run(`searchFaq('ポラライズド').length`) > 0, '答えの中身でも検索できる')
+check(run(`searchFaq('ぽよよん').length`) === 0, '当たらない検索は空を返す')
+
 // ---- 用語解説 ----
 
 check(run('GLOSSARY_TERM_COUNT') > 25, '用語が十分な数ある', `${run('GLOSSARY_TERM_COUNT')} 語`)
@@ -994,6 +1083,74 @@ check(
 check(refSwitch.raiseCells > 0, '定石ビューア: 3ベットのマスが塗られている', String(refSwitch.raiseCells))
 check(refSwitch.sbStats.includes('コールなし'), '定石ビューア: SB のスポットは「コールなし」と明記する', refSwitch.sbStats)
 check(refSwitch.sbLegend === 2, '定石ビューア: コールなしのスポットの凡例は 2 アクション')
+
+// マスをタップすると「この手はなぜ？」が出る (= 質問窓の代わり)
+const refPick = run(`(() => {
+  selectReference('CO_BTN')
+  const before = { answerHidden: el.refAnswer.hidden, promptHidden: el.refPrompt.hidden }
+
+  // グリッドのマスは 169 個、全部タップできる
+  const pickable = el.refGrid.children.filter((c) => c.classList.contains('pickable')).length
+
+  pickReferenceHand('AJo')
+  const picked = {
+    answerHidden: el.refAnswer.hidden,
+    promptHidden: el.refPrompt.hidden,
+    head: el.refAnswerHead.textContent,
+    why: el.refAnswerWhy.textContent,
+    tip: el.refAnswerTip.textContent,
+    cls: el.refAnswer.className,
+  }
+
+  pickReferenceHand('AJo') // もう一度押すと解除 (トグル)
+  const cleared = el.refAnswer.hidden
+
+  pickReferenceHand('AQo')
+  const second = { head: el.refAnswerHead.textContent, cls: el.refAnswer.className }
+
+  // スポットを切り替えるとタップは解除される (別スポットの答えが残ると混乱する)
+  selectReference('UTG_BB')
+  const afterSwitch = el.refAnswer.hidden
+
+  return { before, pickable, picked, cleared, second, afterSwitch }
+})()`)
+
+check(refPick.before.answerHidden === true && refPick.before.promptHidden === false, '定石ビューア: 最初は「タップして」の案内だけ')
+check(refPick.pickable === 169, '定石ビューア: 169 マス全部がタップできる', String(refPick.pickable))
+check(
+  refPick.picked.answerHidden === false && refPick.picked.head.includes('AJo') && refPick.picked.head.includes('3ベット'),
+  '定石ビューア: マスをタップすると答えが出る',
+  refPick.picked.head,
+)
+check(
+  refPick.picked.why.includes('AQo') && refPick.picked.tip.length > 0,
+  '定石ビューア: タップした手の「なぜ」と「覚え方」が出る',
+  refPick.picked.why.slice(0, 40),
+)
+check(refPick.picked.cls.includes('act-threebet-tint'), '定石ビューア: 答えの色がアクションと揃う', refPick.picked.cls)
+check(refPick.cleared === true, '定石ビューア: 同じマスをもう一度押すと閉じる (トグル)')
+check(
+  refPick.second.head.includes('AQo') && refPick.second.cls.includes('act-call-tint'),
+  '定石ビューア: 別のマスを押すと答えが差し替わる',
+  refPick.second.head,
+)
+check(refPick.afterSwitch === true, '定石ビューア: スポットを変えるとタップが解除される')
+
+// 全 19 スポット × 169 ハンドでタップしても落ちない (質問窓として全部に答えられる)
+check(
+  run(`(() => {
+    for (const drill of DRILLS) {
+      selectReference(drill.key)
+      for (const hand of ALL_HANDS) {
+        pickReferenceHand(hand)
+        if (el.refAnswer.hidden || !el.refAnswerWhy.textContent || !el.refAnswerTip.textContent) return false
+        pickReferenceHand(hand) // 解除して次へ
+      }
+    }
+    return true
+  })()`),
+  '定石ビューア: 19 スポット × 169 ハンドのどこを押しても答えが出る',
+)
 
 // 検証内で切り替えた選択を初期状態へ戻す
 run(`selectReference(DRILLS[0].key)`)
