@@ -34,6 +34,30 @@ const RFI_SPECS = {
 const RAISE_SIZE = { SB: '3bb', DEFAULT: '2.5bb' }
 const raiseSizeFor = (positionId) => RAISE_SIZE[positionId] || RAISE_SIZE.DEFAULT
 
+// ---- bb とポット ----
+//
+// bb = ビッグブラインドの額を 1 とした単位。レートが変わっても話が通じるように金額では数えない。
+// 「7.5bb」が何なのかを掴むには、卓にいくら落ちていて、自分の持ち金の何割を出すのかが要る。
+// その計算をここに集めて、画面 (テーブル図・判定・コーチ) から使う。
+
+const STACK_BB = 100 // このアプリは全スポット 100bb スタート
+const BLINDS = { SB: 0.5, BB: 1 }
+const BLIND_POT = BLINDS.SB + BLINDS.BB // 誰も動いていない時点で卓に落ちている額
+
+// '7.5bb' → 7.5。逆は fmtBb。
+const bbValue = (label) => Number(label.replace('bb', ''))
+const fmtBb = (value) => `${Number(value.toFixed(2))}bb`
+
+// その席がすでに出している額 (ブラインドは強制的に出させられている)
+const postedBy = (positionId) => BLINDS[positionId] || 0
+
+// 自分が動く直前にポットに入っている額。
+const potBefore = (drill) =>
+  drill.raiser ? BLIND_POT + bbValue(raiseSizeFor(drill.raiser)) : BLIND_POT
+
+// その額まで上げるとき、実際に新しく出す額 (すでに出しているブラインドぶんは差し引く)。
+const chipsToPut = (drill, sizeLabel) => bbValue(sizeLabel) - postedBy(drill.hero)
+
 // ---- vs RFI (誰かがレイズ済み。フォールド / コール / 3bet) ----
 //
 // 出典: PokerCoaching "Implementable GTO Charts" (online 6-max, 100bb, 2.5x open) のチャートを
@@ -269,3 +293,5 @@ const BOUNDARY_HANDS = UNIQUE_HANDS.filter((hand) => {
   const raises = RFI_DRILLS.filter((d) => d.sets.raise.has(hand)).length
   return raises > 0 && raises < RFI_DRILLS.length
 })
+
+const BOUNDARY_HAND_SET = new Set(BOUNDARY_HANDS)

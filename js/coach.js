@@ -168,10 +168,14 @@ const sizingWhy = (drill) => {
 }
 
 const sizingTip = (drill) => {
+  // bb が抽象のままだと数字を覚えられないので、必ず「持ち金の何%」に翻訳して添える。
+  const asPct = (label) => `${label} (持ち金の ${((bbValue(label) / STACK_BB) * 100).toFixed(1)}%)`
+
   if (drill.type === 'sizing' && !drill.raiser) {
-    return 'オープンは 2.5bb 固定。例外は SB の 3bb だけ (BB を安く見に来させないため)。'
+    return `オープンは ${asPct('2.5bb')} 固定。例外は SB の 3bb だけ (BB を安く見に来させないため)。bb = ビッグブラインド1個ぶん、持ち金は 100bb。`
   }
-  return `3ベットは「IP 3x / OOP 4x」の2本だけ。オープンが ${raiseSizeFor(drill.raiser)} なら IP ${THREEBET_SIZE.ip} · OOP ${THREEBET_SIZE.oop}。額は手の強さで変えない — 変えると読まれる。`
+
+  return `3ベットは「IP 3x / OOP 4x」の2本だけ。オープンが ${raiseSizeFor(drill.raiser)} なら IP ${asPct(THREEBET_SIZE.ip)} · OOP ${asPct(THREEBET_SIZE.oop)}。額は手の強さで変えない — 変えると読まれる。`
 }
 
 // ---- エントリポイント ----

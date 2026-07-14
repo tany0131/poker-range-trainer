@@ -389,6 +389,60 @@ check(review.queued > 0 && review.queued <= 15, 'ミスした問題が復習キ�
 check(review.valid, '復習キューの中身が壊れていない')
 check(review.drawn > 0 && review.drained === 0, '復習キューが再出題され、最終的に消化される')
 
+// 復習キューはモードをまたいで貯まる。今のモードで出せない復習を引いてはいけない
+// (サイズモードにカード付きのレンジ問題が出る / RFI モードに bb の4択が出る、という事故)。
+const reviewLeak = run(`(() => {
+  // 全モードぶんの復習を1つのキューに詰めて、各モードで大量に引いてみる
+  const queue = [
+    { drillKey: 'RFI_UTG', hand: 'AA' },      // 境界ハンドではない RFI
+    { drillKey: 'RFI_BTN', hand: '98o' },     // 境界ハンド
+    { drillKey: 'BTN_BB', hand: 'KTo' },      // vs RFI
+    { drillKey: 'SIZE_RFI_SB', hand: null },  // サイズ
+    { drillKey: 'SIZE_BTN_BB', hand: null },
+  ]
+  const out = {}
+  for (const mode of MODES) {
+    const s = { ...freshState(), mode: mode.id, reviewQueue: queue }
+    const allowed = new Set(mode.drills().map((d) => d.key))
+    const bad = []
+    for (let i = 0; i < 3000; i++) {
+      const { question } = takeQuestion(s)
+      if (!question.isReview) continue
+      if (!allowed.has(question.drillKey)) bad.push('drill:' + question.drillKey)
+      if (mode.boundaryOnly && !BOUNDARY_HAND_SET.has(question.hand)) bad.push('hand:' + question.hand)
+      // サイズの出題にハンドが乗っていない / レンジの出題にハンドがある
+      const isSizing = DRILL_BY_KEY[question.drillKey].type === 'sizing'
+      if (isSizing !== (question.hand === null)) bad.push('shape:' + question.drillKey + ':' + question.hand)
+    }
+    out[mode.id] = [...new Set(bad)]
+  }
+  return out
+})()`)
+for (const [modeId, bad] of Object.entries(reviewLeak)) {
+  check(bad.length === 0, `モード ${modeId}: 担当外の復習を引かない`, bad.slice(0, 3).join(','))
+}
+
+// 逆に、そのモードで出せる復習はちゃんと引ける (絞りすぎて復習が死んでいない)
+const reviewAlive = run(`(() => {
+  const out = {}
+  for (const [modeId, item] of [
+    ['rfi', { drillKey: 'RFI_UTG', hand: 'AA' }],
+    ['boundary', { drillKey: 'RFI_BTN', hand: '98o' }],
+    ['vsrfi', { drillKey: 'BTN_BB', hand: 'KTo' }],
+    ['sizing', { drillKey: 'SIZE_BTN_BB', hand: null }],
+    ['mixed', { drillKey: 'BTN_BB', hand: 'KTo' }],
+  ]) {
+    const s = { ...freshState(), mode: modeId, reviewQueue: [item] }
+    let drawn = 0
+    for (let i = 0; i < 200; i++) if (takeQuestion(s).question.isReview) drawn++
+    out[modeId] = drawn
+  }
+  return out
+})()`)
+for (const [modeId, drawn] of Object.entries(reviewAlive)) {
+  check(drawn > 0, `モード ${modeId}: そのモードの復習はちゃんと引ける`, `${drawn} 回`)
+}
+
 // ---- カード表示 ----
 
 const cardCheck = run(`(() => {
@@ -602,6 +656,40 @@ check(
 // スポットが1つしかない席 (HJ) はレイザー固定で席ごとの違いを見せる
 const hjTip = run(`coachFor(DRILL_BY_KEY['UTG_HJ'], 'AQs').tip`)
 check(hjTip.includes('BB') && hjTip.includes('BTN'), 'コーチ vs RFI: HJ は席ごとの一覧にフォールバックする', hjTip)
+
+// ---- bb とポット (「7.5bb って何」に答えられているか) ----
+
+check(run('STACK_BB') === 100, '全スポット 100bb スタート')
+check(run('BLIND_POT') === 1.5, '手が始まった時点のポットは 1.5bb (SB 0.5 + BB 1)')
+
+// RFI は誰も開けていないのでポット 1.5bb、vs RFI は +2.5bb で 4bb
+check(
+  run(`RFI_DRILLS.every((d) => potBefore(d) === 1.5)`),
+  'RFI のポットは 1.5bb (ブラインドだけ)',
+)
+check(
+  run(`VS_RFI_DRILLS.every((d) => potBefore(d) === 4)`),
+  'vs RFI のポットは 4bb (ブラインド 1.5 + オープン 2.5)',
+)
+check(
+  run(`SIZING_DRILLS.every((d) => potBefore(d) === (d.raiser ? 4 : 1.5))`),
+  'サイズのドリルも同じポット計算になる',
+)
+
+// ブラインドはすでに払い込んでいるので、実際に出す額は差額
+const chipsCases = [
+  ['SIZE_UTG_BB', '10bb', 9], // BB は 1bb 出しているので +9bb
+  ['SIZE_UTG_SB', '10bb', 9.5], // SB は 0.5bb 出しているので +9.5bb
+  ['SIZE_CO_BTN', '7.5bb', 7.5], // BTN はまだ何も出していない
+  ['SIZE_RFI_SB', '3bb', 2.5], // SB のオープン 3bb は、0.5 を差し引いて +2.5bb
+  ['SIZE_RFI_UTG', '2.5bb', 2.5],
+]
+for (const [key, size, expected] of chipsCases) {
+  const got = run(`chipsToPut(DRILL_BY_KEY['${key}'], '${size}')`)
+  check(got === expected, `${key}: ${size} にするのに実際に出すのは ${expected}bb`, `(実際 ${got}bb)`)
+}
+
+check(run(`fmtBb(7.5) === '7.5bb' && fmtBb(9) === '9bb' && fmtBb(1.5) === '1.5bb'`), 'bb 表記に余計な小数が付かない')
 
 // ---- サイズ ----
 
@@ -949,6 +1037,55 @@ const uiFlow = run(`(() => {
 })()`)
 
 check(uiFlow.okBanner.hidden === false, '回答すると判定エリアが表示される')
+
+// テーブル図には常にポットが出る (全モード共通。bb を額として掴むための基準)
+const potOnFelt = run(`(() => {
+  const seen = []
+  for (const key of ['RFI_UTG', 'UTG_BB', 'SIZE_CO_BTN']) {
+    renderTable(DRILL_BY_KEY[key])
+    const pot = el.table.children.find((c) => c.attributes.class === 'felt-pot')
+    seen.push([key, pot ? pot.textContent : null])
+  }
+  return seen
+})()`)
+check(
+  potOnFelt.every(([, text]) => text && text.startsWith('ポット ')),
+  'テーブル図にポットが常に出る',
+  JSON.stringify(potOnFelt),
+)
+check(
+  potOnFelt[0][1] === 'ポット 1.5bb' && potOnFelt[1][1] === 'ポット 4bb' && potOnFelt[2][1] === 'ポット 4bb',
+  'テーブル図のポットが正しい (RFI 1.5bb / vs RFI 4bb)',
+  JSON.stringify(potOnFelt),
+)
+
+// サイズの選択肢に「実際に出す額」が添えてある
+const sizeSubLabels = run(`(() => {
+  renderActions(DRILL_BY_KEY['SIZE_UTG_BB'], () => {})
+  return el.actions.children.map((b) => {
+    const sub = b.children.find((c) => c.className === 'action-sub')
+    return [b.dataset.action, sub ? sub.textContent : null]
+  })
+})()`)
+check(
+  sizeSubLabels.every(([, sub]) => sub && sub.startsWith('追加 ')),
+  'サイズの選択肢すべてに「追加 ◯bb」が付く',
+  JSON.stringify(sizeSubLabels),
+)
+check(
+  sizeSubLabels.find(([id]) => id === '10bb')[1] === '追加 9bb',
+  'BB が 10bb にするとき「追加 9bb」と出る (1bb はすでに払い込み済み)',
+  JSON.stringify(sizeSubLabels),
+)
+
+// レンジのドリルには「追加」は付かない
+check(
+  run(`(() => {
+    renderActions(DRILL_BY_KEY['RFI_UTG'], () => {})
+    return el.actions.children.every((b) => !b.children.some((c) => c.className === 'action-sub'))
+  })()`),
+  'レンジの選択肢には「追加 ◯bb」を付けない',
+)
 check(uiFlow.okBanner.cls.includes('ok'), '正解時のバナーが ok になる', uiFlow.okBanner.cls)
 check(uiFlow.okBanner.mark === '正解', '正解時のバナー文言', uiFlow.okBanner.mark)
 check(uiFlow.ngBanner.cls.includes('ng'), '不正解時のバナーが ng になる', uiFlow.ngBanner.cls)
@@ -1041,6 +1178,11 @@ check(
 )
 check(sizingUi.verdict.chartHidden === true, 'サイズの判定ではレンジ表を出さない (ハンドの表なので意味がない)')
 check(
+  sizingUi.asked.combos.includes(`持ち金 100bb`) && sizingUi.asked.combos.includes('ポット'),
+  'サイズの出題に 持ち金 と ポット が出る (bb を額として掴めるように)',
+  sizingUi.asked.combos,
+)
+check(
   sizingUi.verdict.banner.includes(sizingUi.verdict.correct),
   'サイズの不正解バナーが正しい額を出す',
   sizingUi.verdict.banner,
@@ -1057,6 +1199,15 @@ check(
   'サイズでも正解ボタンが緑・押した不正解が赤になる',
   JSON.stringify(sizingUi.verdict.marks),
 )
+// 判定文が「その数字が実際に何なのか」まで書いている
+check(
+  sizingUi.verdict.note.includes('ポット') &&
+    sizingUi.verdict.note.includes('持ち金') &&
+    sizingUi.verdict.note.includes('%'),
+  'サイズの判定文が ポット / 持ち金 / 割合 まで書く',
+  sizingUi.verdict.note,
+)
+
 check(sizingUi.nextIsSizing, 'サイズモードでは次の問題もサイズ')
 check(sizingUi.backToRange.cardsHidden === false, 'レンジのモードに戻すとカードが復活する')
 check(sizingUi.backToRange.hand !== null, 'レンジのモードに戻すとハンドが配られる')

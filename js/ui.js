@@ -142,8 +142,13 @@ const renderTable = (drill) => {
   const potLine = drill.raiser
     ? `${drill.raiser} が ${raiseSizeFor(drill.raiser)} にレイズ`
     : '全員フォールド'
-  el.table.appendChild(svg('text', { class: 'felt-text', x: 170, y: 103 }, potLine))
-  el.table.appendChild(svg('text', { class: 'felt-text', x: 170, y: 116 }, 'あなたの番'))
+
+  // ポットを常に出す。「7.5bb」がいくらなのかは、卓にいくら落ちているかを見ないと掴めない。
+  const potText = `ポット ${fmtBb(potBefore(drill))}`
+
+  el.table.appendChild(svg('text', { class: 'felt-text', x: 170, y: 98 }, potLine))
+  el.table.appendChild(svg('text', { class: 'felt-pot', x: 170, y: 112 }, potText))
+  el.table.appendChild(svg('text', { class: 'felt-text', x: 170, y: 124 }, 'あなたの番'))
 
   for (const position of POSITIONS) {
     const [x, y] = SEAT_XY[position.id]
@@ -219,6 +224,15 @@ const renderActions = (drill, onAnswer) => {
     label.textContent = action.label
     button.appendChild(label)
 
+    // サイズの選択肢には「実際に手元から出る額」を添える。
+    // ブラインドはすでに払い込んでいるので、10bb にするのに 10bb 出すわけではない。
+    if (action.tone === 'size') {
+      const sub = document.createElement('span')
+      sub.className = 'action-sub'
+      sub.textContent = `追加 ${fmtBb(chipsToPut(drill, action.id))}`
+      button.appendChild(sub)
+    }
+
     const key = document.createElement('span')
     key.className = 'key'
     key.textContent = action.hotkey.toUpperCase()
@@ -259,7 +273,8 @@ const renderHandArea = (drill, hand) => {
     el.cards.hidden = true
     el.hand.innerHTML = ''
     el.hand.textContent = drill.raiser ? '3ベットする' : 'オープンレイズする'
-    el.combos.textContent = 'いくらにする？ (額は手に依存しない)'
+    // 持ち金を出しておく。「7.5bb」は 100bb スタックの 7.5% だと分かって初めて額として掴める。
+    el.combos.textContent = `いくらにする？ 持ち金 ${STACK_BB}bb / ポット ${fmtBb(potBefore(drill))} (額は手に依存しない)`
     return
   }
 
@@ -340,8 +355,19 @@ const verdictHeadline = (drill, question, grade, chosenAction) => {
 const verdictNoteText = (drill, question, grade) => {
   const correctLabel = actionLabelOf(drill, grade.correctAction)
 
+  // サイズは「その数字が実際に何を意味するか」まで書かないと、bb が最後まで抽象のままになる。
   if (drill.type === 'sizing') {
-    return `${drill.title} → ${correctLabel}。額は手の強さで変えない (変えると読まれる)。`
+    const size = bbValue(grade.correctAction)
+    const pot = potBefore(drill)
+    const put = chipsToPut(drill, grade.correctAction)
+    const posted = postedBy(drill.hero)
+
+    const chips =
+      posted > 0
+        ? `すでに出している ${fmtBb(posted)} に ${fmtBb(put)} 足して ${correctLabel}`
+        : `手元から ${fmtBb(put)} 出す`
+
+    return `${fmtBb(pot)} 入っているポットを取りに ${correctLabel} — ${chips}。持ち金 ${STACK_BB}bb の ${((size / STACK_BB) * 100).toFixed(1)}%、ポットの ${(size / pot).toFixed(1)} 倍。`
   }
 
   const share =

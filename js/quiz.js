@@ -27,7 +27,7 @@ const MODES = [
     label: 'サイズ',
     drills: () => SIZING_DRILLS,
     noHand: true,
-    hint: 'いくら賭けるか。サイズは手に依存しない (同じ額で打つから読まれない) ので、ここではカードを配らない。覚えるのは オープン 2.5bb (SB だけ 3bb) と 3ベット IP 3x / OOP 4x の2本だけ。',
+    hint: 'いくら賭けるか。bb = ビッグブラインド1個ぶんの額で、持ち金は全スポット 100bb。つまり 7.5bb は持ち金の 7.5%。サイズは手に依存しない (同じ額で打つから読まれない) ので、ここではカードを配らない。覚えるのは オープン 2.5bb (SB だけ 3bb) と 3ベット IP 3x / OOP 4x の2本だけ。',
   },
   {
     id: 'mixed',
@@ -66,16 +66,27 @@ const drawFresh = (modeId, focusKey = null) => {
   return { drillKey: drill.key, hand, isReview: false }
 }
 
+// その復習を今のモードで出してよいか。
+// 復習キューはモードをまたいで貯まるので、ここで絞らないと サイズモードにカード付きの
+// レンジ問題が出てくる (逆も然り)。境界特訓も同様に、境界ハンド以外を出さない。
+const isReviewableIn = (mode, item) => {
+  if (!mode.drills().some((drill) => drill.key === item.drillKey)) return false
+  if (mode.boundaryOnly && !BOUNDARY_HAND_SET.has(item.hand)) return false
+  return true
+}
+
 // 間違えたハンドは優先キューに入り、一定確率で再出題される (軽い間隔反復)。
 // 常に { question, reviewQueue } を返す。復習を引いたときだけキューが縮む。
 const takeQuestion = (state) => {
   const queue = state.reviewQueue
+  const mode = MODE_BY_ID[state.mode] || MODE_BY_ID.rfi
   const useReview = queue.length > 0 && Math.random() < REVIEW_PROBABILITY
 
   // 狙い撃ち中は、そのスポットの復習だけを拾う (他スポットの復習が割り込むと集中が切れる)
-  const eligible = state.focus
-    ? queue.map((item, i) => [item, i]).filter(([item]) => item.drillKey === state.focus)
-    : queue.map((item, i) => [item, i])
+  const eligible = queue
+    .map((item, i) => [item, i])
+    .filter(([item]) => isReviewableIn(mode, item))
+    .filter(([item]) => !state.focus || item.drillKey === state.focus)
 
   if (!useReview || eligible.length === 0) {
     return { question: drawFresh(state.mode, state.focus), reviewQueue: queue }
