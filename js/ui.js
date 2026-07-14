@@ -70,6 +70,13 @@ const el = {
   steps: document.getElementById('steps'),
   growthGrid: document.getElementById('growth-grid'),
   growthNote: document.getElementById('growth-note'),
+  refRfi: document.getElementById('ref-rfi'),
+  refVs: document.getElementById('ref-vs'),
+  refTitle: document.getElementById('ref-title'),
+  refNote: document.getElementById('ref-note'),
+  refStats: document.getElementById('ref-stats'),
+  refGrid: document.getElementById('ref-grid'),
+  refLegend: document.getElementById('ref-legend'),
 }
 
 const NS = 'http://www.w3.org/2000/svg'
@@ -258,20 +265,20 @@ const renderQuestion = (state, question, onAnswer) => {
 
 // ---- 判定 ----
 
-const renderGrid = (drill, currentHand) => {
-  el.grid.innerHTML = ''
+const renderGridInto = (target, drill, currentHand = null) => {
+  target.innerHTML = ''
   for (const hand of ALL_HANDS) {
     const action = drill.answerFor(hand)
     const cell = document.createElement('div')
     cell.className = `cell ${ACTION_COLORS[action]}`
-    if (hand === currentHand) cell.classList.add('current')
+    if (currentHand !== null && hand === currentHand) cell.classList.add('current')
     cell.textContent = hand
-    el.grid.appendChild(cell)
+    target.appendChild(cell)
   }
 }
 
-const renderLegend = (drill) => {
-  el.legend.innerHTML = ''
+const renderLegendInto = (target, drill) => {
+  target.innerHTML = ''
   const actions = [...drill.actions.map((a) => a.id)]
   if (!actions.includes('fold')) actions.push('fold')
 
@@ -281,9 +288,12 @@ const renderLegend = (drill) => {
     swatch.className = `swatch ${ACTION_COLORS[action]}`
     item.appendChild(swatch)
     item.appendChild(document.createTextNode(ACTION_LABELS[action]))
-    el.legend.appendChild(item)
+    target.appendChild(item)
   }
 }
+
+const renderGrid = (drill, currentHand) => renderGridInto(el.grid, drill, currentHand)
+const renderLegend = (drill) => renderLegendInto(el.legend, drill)
 
 const renderVerdict = (question, grade, chosenAction) => {
   const drill = DRILL_BY_KEY[question.drillKey]
@@ -482,6 +492,47 @@ const renderGrowth = (stepIndex, onSelect) => {
 
   renderGrowthGrid(step)
   el.growthNote.textContent = describeStep(step)
+}
+
+// ---- 定石ビューア ----
+
+// 出題を待たずにチャートを眺めるためのカード。数字は sets から都度計算する (正本とずらさない)。
+const refStatsText = (drill) => {
+  if (drill.type === 'rfi') {
+    return `レイズ ${pctOf(drill.sets.raise).toFixed(0)}% (${drill.sets.raise.size} ハンド) / フォールド ${drill.foldBaseline.toFixed(0)}%`
+  }
+
+  const threebetPart = `3ベット ${pctOf(drill.sets.threebet).toFixed(1)}% (${drill.sets.threebet.size} ハンド)`
+  const callPart =
+    drill.sets.call.size > 0
+      ? `コール ${pctOf(drill.sets.call).toFixed(1)}% (${drill.sets.call.size} ハンド)`
+      : 'コールなし (3ベット・オア・フォールド)'
+  return `${threebetPart} / ${callPart} / フォールド ${drill.foldBaseline.toFixed(0)}%`
+}
+
+const renderRefButtons = (container, drills, selectedKey, onSelect, labelOf) => {
+  container.innerHTML = ''
+  for (const drill of drills) {
+    const button = document.createElement('button')
+    button.className = `step-btn${drill.key === selectedKey ? ' active' : ''}`
+    button.textContent = labelOf(drill)
+    button.addEventListener('click', () => onSelect(drill.key))
+    container.appendChild(button)
+  }
+}
+
+const renderReference = (selectedKey, onSelect) => {
+  const drill = DRILL_BY_KEY[selectedKey]
+
+  renderRefButtons(el.refRfi, RFI_DRILLS, selectedKey, onSelect, (d) => d.hero)
+  renderRefButtons(el.refVs, VS_RFI_DRILLS, selectedKey, onSelect, (d) => d.label)
+
+  el.refTitle.textContent = drill.title
+  el.refNote.textContent = drill.note
+  el.refStats.textContent = refStatsText(drill)
+
+  renderGridInto(el.refGrid, drill)
+  renderLegendInto(el.refLegend, drill)
 }
 
 const renderHelp = () => {

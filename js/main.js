@@ -116,8 +116,16 @@ const selectGrowthStep = (index) => {
   renderGrowth(growthStep, selectGrowthStep)
 }
 
+// 定石ビューアの選択スポット。これも一時的な状態なので保存しない。
+let referenceKey = DRILLS[0].key
+const selectReference = (drillKey) => {
+  referenceKey = drillKey
+  renderReference(referenceKey, selectReference)
+}
+
 renderHelp()
 renderGrowth(growthStep, selectGrowthStep)
+renderReference(referenceKey, selectReference)
 renderModes(state, selectMode)
 renderDashboard(state)
 advance()

@@ -600,6 +600,55 @@ check(
 const hjTip = run(`coachFor(DRILL_BY_KEY['UTG_HJ'], 'AQs').tip`)
 check(hjTip.includes('BB') && hjTip.includes('BTN'), 'コーチ vs RFI: HJ は席ごとの一覧にフォールバックする', hjTip)
 
+// ---- 解説で教えている構造が実データで成り立つ ----
+// (index.html の「3ベット側の覚え方」に書いた主張。データを変えたらここが落ちて文言の見直しに気づける)
+
+const callHeroes = run(`[...new Set(VS_RFI_DRILLS.filter((d) => d.sets.call.size > 0).map((d) => d.hero))]`)
+check(
+  callHeroes.every((h) => h === 'BTN' || h === 'BB'),
+  '解説: コールレンジが存在するのは BTN と BB だけ',
+  callHeroes.join(','),
+)
+
+const noWheelAce = run(`VS_RFI_DRILLS.filter(
+  (d) => !['A5s', 'A4s', 'A3s', 'A2s'].some((h) => d.sets.threebet.has(h))
+).map((d) => d.key)`)
+check(noWheelAce.length === 0, '解説: 全 3ベットレンジにホイールエース (A5s-A2s) が入っている', noWheelAce.join(','))
+
+// ---- 定石ビューア ----
+
+// main.js の初期化で最初のスポットが描かれている
+check(run(`el.refGrid.children.length`) === 169, '定石ビューア: グリッドが 169 マス描かれる')
+check(run(`el.refRfi.children.length`) === 5, '定石ビューア: RFI のボタンが 5 個')
+check(run(`el.refVs.children.length`) === 14, '定石ビューア: vs RFI のボタンが 14 個')
+check(run(`el.refTitle.textContent.length > 0 && el.refNote.textContent.length > 0`), '定石ビューア: タイトルと説明が入る')
+
+// スポットを切り替えると中身が追随する
+const refSwitch = run(`(() => {
+  selectReference('BTN_BB')
+  const stats = el.refStats.textContent
+  const legend = el.refLegend.children.length
+  const active = [...el.refRfi.children, ...el.refVs.children].filter((b) => b.className.includes('active'))
+  const raiseCells = el.refGrid.children.filter((c) => c.className.includes('act-threebet')).length
+  selectReference('UTG_SB')
+  const sbStats = el.refStats.textContent
+  const sbLegend = el.refLegend.children.length
+  return { stats, legend, active: active.map((b) => b.textContent), raiseCells, sbStats, sbLegend }
+})()`)
+check(refSwitch.stats.includes('コール') && refSwitch.stats.includes('3ベット'), '定石ビューア: BTN_BB は 3ベットとコールの割合を出す', refSwitch.stats)
+check(refSwitch.legend === 3, '定石ビューア: BTN_BB の凡例は 3 アクション')
+check(
+  refSwitch.active.length === 1 && refSwitch.active[0].includes('BB'),
+  '定石ビューア: 選択中のボタンだけが active',
+  refSwitch.active.join(','),
+)
+check(refSwitch.raiseCells > 0, '定石ビューア: 3ベットのマスが塗られている', String(refSwitch.raiseCells))
+check(refSwitch.sbStats.includes('コールなし'), '定石ビューア: SB のスポットは「コールなし」と明記する', refSwitch.sbStats)
+check(refSwitch.sbLegend === 2, '定石ビューア: コールなしのスポットの凡例は 2 アクション')
+
+// 検証内で切り替えた選択を初期状態へ戻す
+run(`selectReference(DRILLS[0].key)`)
+
 // ---- UI: 回答パスを実際に通す ----
 // main.js の answer() を叩いて、バナー / ボタンの色付け / 次へボタンまで描かれることを確認する。
 

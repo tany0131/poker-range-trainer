@@ -93,6 +93,32 @@
         </div>
       </details>
 
+      <details class="card reference">
+        <summary>定石を見る — 全スポットのチャート</summary>
+        <div class="reference-body">
+          <p class="reference-lead">
+            出題を待たずに、覚えたいスポットのチャートを確認する。
+            ここで眺めてから、成績表の行タップで同じスポットを狙い撃ちすると定着が速い。
+          </p>
+
+          <div class="ref-group">
+            <span class="ref-group-label">RFI</span>
+            <div class="ref-btns" id="ref-rfi"></div>
+          </div>
+          <div class="ref-group">
+            <span class="ref-group-label">vs RFI</span>
+            <div class="ref-btns" id="ref-vs"></div>
+          </div>
+
+          <p class="ref-title" id="ref-title"></p>
+          <p class="ref-note" id="ref-note"></p>
+          <p class="ref-stats" id="ref-stats"></p>
+
+          <div class="grid" id="ref-grid" aria-hidden="true"></div>
+          <div class="legend" id="ref-legend"></div>
+        </div>
+      </details>
+
       <details class="card help">
         <summary>解説 — ポジションと 3ベット</summary>
         <div class="help-body">
@@ -194,6 +220,35 @@
             一番効く一言は <strong>「スーテッドは2〜3席ぶん格上げ」</strong>。
             J9s は UTG から開けるのに、J9o は BTN まで待たないと開けられない。
             同じ J9 でも、スート1つで3席ぶん違う。迷ったら<strong>まずスーテッドかどうかを確認する</strong>癖をつけると事故が減ります。
+          </p>
+
+          <h3>3ベット側の覚え方 — 構造で絞る</h3>
+          <p>
+            <strong>まず席で絞る: コールが存在するのは BTN と BB だけ。</strong>
+            HJ / CO は後ろに人が残りすぎるのでコールドコールせず、3ベットかフォールドの二択。SB も常に二択。
+            つまり <strong>BTN と BB 以外では「コール」ボタンのことを忘れていい</strong>。
+          </p>
+          <p>
+            <strong>3ベットレンジは「バリュー + ホイールエース」の2階建て。</strong>
+            柱は 99+ / AQ 級の明確に強い手。そこに A5s〜A2s あたりのスーテッドエースをブラフとして混ぜる。
+            A を1枚ブロックするので相手の AA / AK が減り、コールされてもフラッシュやホイール (A-2-3-4-5) が残るからです。
+            全 14 スポットの 3ベットレンジに、このホイールエースが必ず入っています。
+          </p>
+          <p>
+            <strong>最大の罠はオフスーツのブロードウェイ。</strong>
+            KJo / QJo / KTo は見た目より弱く、レイザーの AK / AQ / KQ にドミネートされています
+            (トップペアを作っても相手が上)。「絵札2枚だから」でコールしない。
+            スーテッドなら守れる手も、オフスーツなら降りるのが基本形。
+          </p>
+          <p>
+            <strong>BB だけは別ルール。</strong>
+            すでに 1bb 払っていて追加が安く、最後に行動してその周を閉じられるので、他の席なら降りる手でも広く守る。
+            レイザーが後ろの席になるほど守る範囲も広がる (vs UTG 約27% → vs BTN 約半分)。
+          </p>
+          <p>
+            <strong>迷ったら「レイザーがどこか」を最初に見る。</strong>
+            同じ手・同じ席でも、UTG のレイズには降りて BTN のレイズには守る、が普通に起きます。
+            自分の手の強さ単体ではなく、相手のオープンレンジとの比較で決まるからです。
           </p>
 
           <h3>境界特訓モードとは</h3>
