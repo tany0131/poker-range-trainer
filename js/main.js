@@ -5,6 +5,7 @@ const STREAK_SOUND_AT = 5
 let state = loadState()
 let current = null
 let answered = false
+let lastChoice = null // 「やさしく」を切り替えたときに、表示中の判定を描き直すため
 
 const commit = (next) => {
   state = next
@@ -16,12 +17,14 @@ const advance = () => {
   commit({ ...state, reviewQueue })
   current = question
   answered = false
+  lastChoice = null
   renderQuestion(state, current, answer)
 }
 
 function answer(chosenAction) {
   if (answered || !current) return
   answered = true
+  lastChoice = chosenAction
 
   const grade = gradeAnswer(current, chosenAction)
 
@@ -44,7 +47,7 @@ function answer(chosenAction) {
   // メニューを完走した瞬間に連続日数を伸ばす (完走判定は今日のログから毎回作り直す)
   commit(bumpDailyStreak(state))
 
-  renderVerdict(current, grade, chosenAction)
+  renderVerdict(state, current, grade, chosenAction)
   renderDashboard(state, selectFocus)
   renderDaily(state, startDailyTask)
 }
@@ -91,7 +94,7 @@ el.focusClear.addEventListener('click', () => {
 })
 
 el.reset.addEventListener('click', () => {
-  commit({ ...freshState(), mode: state.mode, soundOn: state.soundOn })
+  commit({ ...freshState(), mode: state.mode, soundOn: state.soundOn, easyMode: state.easyMode })
   renderDashboard(state, selectFocus)
   renderDaily(state, startDailyTask)
   advance()
@@ -104,6 +107,18 @@ el.sound.addEventListener('click', () => {
   commit({ ...state, soundOn: !state.soundOn })
   renderSound(state)
   if (state.soundOn) playTone('correct')
+})
+
+// 説明の言葉づかいを切り替える。答えは変わらないので、出題はやり直さない。
+// 表示中のコーチ文と定石ビューアの答えはその場で書き換える。
+el.easy.addEventListener('click', () => {
+  commit({ ...state, easyMode: !state.easyMode })
+  renderEasy(state)
+  renderModes(state, selectMode)
+  drawReference()
+  if (answered && current && lastChoice) {
+    renderVerdict(state, current, gradeAnswer(current, lastChoice), lastChoice)
+  }
 })
 
 document.addEventListener('keydown', (event) => {
@@ -137,7 +152,8 @@ const selectGrowthStep = (index) => {
 let referenceKey = DRILLS[0].key
 let referenceHand = null
 
-const drawReference = () => renderReference(referenceKey, referenceHand, selectReference, pickReferenceHand)
+const drawReference = () =>
+  renderReference(referenceKey, referenceHand, state.easyMode, selectReference, pickReferenceHand)
 
 // スポットを切り替えたらタップは解除する (別スポットの答えが残ると混乱する)
 function selectReference(drillKey) {
@@ -151,6 +167,10 @@ function pickReferenceHand(hand) {
   referenceHand = referenceHand === hand ? null : hand
   drawReference()
 }
+
+// はじめての人向けの導入は、まだ1問も答えていないときだけ開いておく。
+// 一度でも練習していれば畳んだ状態で始める (毎回たたむ手間をかけさせない)。
+el.intro.open = state.history.length === 0
 
 renderHelp()
 renderGlossary()

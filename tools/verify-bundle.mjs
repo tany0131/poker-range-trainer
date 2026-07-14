@@ -115,6 +115,12 @@ for (const file of ['dist/trainer.html', 'dist/artifact.html']) {
   check(run(`coachFor(DRILL_BY_KEY['RFI_UTG'], '98o').why.length > 0`), `${file}: コーチ文が出る`)
   check(run('dailyTasks(state).length') === 4, `${file}: 今日のメニューが 4 タスク`)
   check(run('GLOSSARY_TERM_COUNT') > 25, `${file}: 用語解説が入っている`, `${run('GLOSSARY_TERM_COUNT')} 語`)
+  check(run('FAQ.length') >= 10, `${file}: よくある質問が入っている`, `${run('FAQ.length')} 件`)
+  check(
+    run(`coachFor(DRILL_BY_KEY['CO_BTN'], 'AJo', true).why !== coachFor(DRILL_BY_KEY['CO_BTN'], 'AJo', false).why`),
+    `${file}: やさしい版とくわしい版が両方入っている`,
+  )
+  check(run(`coachFor(DRILL_BY_KEY['CO_BTN'], 'AJo', true).why.includes('キッカー負け')`), `${file}: やさしい版が動く`)
   check(run('el.dailyList.children.length') === 4, `${file}: メニューが描画されている`)
   check(run('el.glossaryBody.children.length') > 0, `${file}: 用語解説が描画されている`)
 }

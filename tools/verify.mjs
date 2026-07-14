@@ -99,6 +99,7 @@ const SCRIPTS = [
   'js/ranges.js',
   'js/spots.js',
   'js/coach.js',
+  'js/coach-easy.js',
   'js/cards.js',
   'js/stats.js',
   'js/daily.js',
@@ -343,20 +344,30 @@ check(alwaysAggro.leaks > 0, '連打で弱点が検出される', `${alwaysAggro
 const alwaysFold = drive('mixed', '() => "fold"', 400)
 check((alwaysFold.tendency || '').includes('消極的'), 'フォールド連打は「消極的」と診断される', alwaysFold.tendency || '(なし)')
 
-// 基準 (foldBaseline) の定義確認: 復習キューを挟まない素の出題を全部フォールドすると基準値に張り付く
+// 基準 (foldBaseline) の定義確認: 復習キューを挟まない素の出題を全部フォールドすると基準値に張り付く。
+//
+// ドリルごとに独立して引く。'mixed' から引くと 1 ドリルあたりのサンプルが 1/19 に薄まり、
+// ばらつきで稀に閾値を割ってしまう (検証がランダムに落ちる = 出荷ゲートとして使いものにならない)。
+const FOLD_SAMPLES = 20000
+const FOLD_TOLERANCE = 1.5 // 20000 引けば標準誤差は 0.4pt 未満なので、これは 4 シグマ相当
+
 const foldFresh = run(`(() => {
-  const tally = {}
-  for (const d of DRILLS) tally[d.key] = { asked: 0, correct: 0 }
-  for (let i = 0; i < 40000; i++) {
-    const q = drawFresh('mixed')
-    const drill = DRILL_BY_KEY[q.drillKey]
-    tally[q.drillKey].asked++
-    if (drill.answerFor(q.hand) === 'fold') tally[q.drillKey].correct++
-  }
-  return DRILLS.map((d) => [d.key, (tally[d.key].correct / tally[d.key].asked) * 100, d.foldBaseline])
+  return DRILLS.map((drill) => {
+    let folds = 0
+    for (let i = 0; i < ${FOLD_SAMPLES}; i++) {
+      if (drill.answerFor(drawWeightedHand()) === 'fold') folds++
+    }
+    return [drill.key, (folds / ${FOLD_SAMPLES}) * 100, drill.foldBaseline]
+  })
 })()`)
-const baselineOff = foldFresh.filter(([, observed, baseline]) => Math.abs(observed - baseline) > 3)
-check(baselineOff.length === 0, '全ドリルで「素の出題をフォールド連打 = 基準値」', baselineOff.map(([k]) => k).join(','))
+const baselineOff = foldFresh.filter(
+  ([, observed, baseline]) => Math.abs(observed - baseline) > FOLD_TOLERANCE,
+)
+check(
+  baselineOff.length === 0,
+  '全ドリルで「素の出題をフォールド連打 = 基準値」',
+  baselineOff.map(([k, o, b]) => `${k} ${o.toFixed(1)}% vs ${b.toFixed(1)}%`).join(','),
+)
 
 // ---- 復習キュー ----
 
@@ -773,6 +784,83 @@ const sizeCoachOop = run(`coachFor(DRILL_BY_KEY['SIZE_UTG_BB'], null).why`)
 check(sizeCoachOop.includes('OOP') && sizeCoachOop.includes('4x'), 'コーチ サイズ: OOP は 4x と説明する', sizeCoachOop)
 const sizeCoachIp = run(`coachFor(DRILL_BY_KEY['SIZE_CO_BTN'], null).why`)
 check(sizeCoachIp.includes('IP') && sizeCoachIp.includes('3x'), 'コーチ サイズ: IP は 3x と説明する', sizeCoachIp)
+
+// ---- やさしい説明 (初心者版) ----
+//
+// くわしい版と同じ場面すべてに、やさしい版が存在し、答えを変えていないこと。
+// 「やさしくするために説明を変えたら、実は答えも変わっていた」が最悪の事故。
+
+const easyGaps = run(`(() => {
+  const bad = []
+  for (const drill of ALL_DRILLS) {
+    const hands = drill.type === 'sizing' ? [null] : UNIQUE_HANDS
+    for (const hand of hands) {
+      try {
+        const easy = coachFor(drill, hand, true)
+        const detail = coachFor(drill, hand, false)
+        if (!easy.why || !easy.tip) bad.push('empty:' + drill.key + ':' + hand)
+        // やさしい版がくわしい版のコピーになっていない (言い換える意味がある)
+        if (easy.why === detail.why) bad.push('same:' + drill.key + ':' + hand)
+      } catch (e) {
+        bad.push('throw:' + drill.key + ':' + hand + ':' + e.message)
+      }
+    }
+  }
+  return bad
+})()`)
+check(easyGaps.length === 0, 'やさしい版が全ドリル × 全ハンドで存在し、くわしい版と別の文章になっている', easyGaps.slice(0, 3).join(' | '))
+
+// 専門用語を素で出していないこと (出すなら必ずその場で言い換える約束)
+const JARGON = ['ポラライズド', 'ドミネート', 'ブロッカー', 'エクイティ', 'ポットオッズ', 'IP', 'OOP', 'combos', 'GTO']
+const easyJargon = run(`(() => {
+  const found = {}
+  for (const drill of ALL_DRILLS) {
+    const hands = drill.type === 'sizing' ? [null] : UNIQUE_HANDS
+    for (const hand of hands) {
+      const { why, tip } = coachFor(drill, hand, true)
+      const text = why + ' ' + tip
+      for (const word of ${JSON.stringify(JARGON)}) {
+        if (text.includes(word)) (found[word] = found[word] || []).push(drill.key + ':' + hand)
+      }
+    }
+  }
+  return Object.entries(found).map(([w, hits]) => w + ' (' + hits.length + '件 例:' + hits[0] + ')')
+})()`)
+check(easyJargon.length === 0, 'やさしい版が専門用語を素で出さない', easyJargon.join(', '))
+
+// やさしい版でも「答え」は同じ。説明が変わるだけで、結論が変わってはいけない
+check(
+  run(`(() => {
+    // coachFor は説明しか返さないので、answerFor が唯一の正解であることを確認する。
+    // どちらのレベルでも同じ drill.answerFor を説明している = 説明中に出る結論語が答えと矛盾しない
+    const bad = []
+    for (const key of ['CO_BTN', 'UTG_BB', 'RFI_UTG']) {
+      const drill = DRILL_BY_KEY[key]
+      for (const hand of UNIQUE_HANDS) {
+        const answer = drill.answerFor(hand)
+        const easy = coachFor(drill, hand, true).why
+        // 降りるのが正解なのに「被せる」と書いている、のような矛盾を弾く
+        if (answer === 'fold' && (easy.includes('上から被せて相手が降りれば勝ち') || easy.includes('大きなポットを作りにいきます'))) {
+          bad.push(key + ':' + hand)
+        }
+      }
+    }
+    return bad
+  })()`).length === 0,
+  'やさしい版の説明が、正解と矛盾する言い方をしない',
+)
+
+// つまずきどころ (AQo / AJo の逆転) が、やさしい版でもちゃんと説明されている
+const easyAjo = run(`coachFor(DRILL_BY_KEY['CO_BTN'], 'AJo', true).why`)
+check(easyAjo.includes('AQo') && easyAjo.includes('キッカー負け'), 'やさしい版: AJo の逆転を専門用語なしで説明する', easyAjo.slice(0, 50))
+const easyAqo = run(`coachFor(DRILL_BY_KEY['CO_BTN'], 'AQo', true).why`)
+check(easyAqo.includes('AJo') && easyAqo.includes('もったいない'), 'やさしい版: AQo のコールを専門用語なしで説明する', easyAqo.slice(0, 50))
+
+// やさしい版のモードヒントが全モードにある
+check(
+  run(`MODES.every((m) => m.easyHint && m.easyHint.length > 20 && m.easyHint !== m.hint)`),
+  '全モードに やさしい版のヒントがある',
+)
 
 // ---- ポラライズ (3ベットは強さの順ではない) ----
 //
@@ -1401,6 +1489,79 @@ check(
   'メニューの「サイズ」をタップするとサイズモードが始まる',
   JSON.stringify(sizingStart),
 )
+
+// 「やさしく」トグルが、表示中の解説をその場で書き換える
+const easyToggle = run(`(() => {
+  commit({ ...state, easyMode: false, mode: 'rfi', focus: null })
+  advance()
+
+  // わざと間違えてコーチを出す
+  const drill = DRILL_BY_KEY[current.drillKey]
+  const correct = drill.answerFor(current.hand)
+  const wrong = drill.actions.map((a) => a.id).find((a) => a !== correct)
+  answer(wrong)
+
+  const detailText = el.coachWhy.textContent
+  const detailHint = el.modeHint.textContent
+  const detailLabel = el.easy.textContent
+
+  // 定石ビューアにも答えを出しておく
+  selectReference('CO_BTN')
+  pickReferenceHand('AJo')
+  const detailRef = el.refAnswerWhy.textContent
+
+  // トグル (ボタンのハンドラは vm では発火しないので、同じ配線を直接呼ぶ)
+  commit({ ...state, easyMode: true })
+  renderEasy(state)
+  renderModes(state, selectMode)
+  drawReference()
+  renderVerdict(state, current, gradeAnswer(current, wrong), wrong)
+
+  return {
+    detailText,
+    easyText: el.coachWhy.textContent,
+    detailHint,
+    easyHint: el.modeHint.textContent,
+    detailLabel,
+    easyLabel: el.easy.textContent,
+    easyOn: el.easy.classList.contains('on'),
+    detailRef,
+    easyRef: el.refAnswerWhy.textContent,
+    stillAnswered: el.coach.hidden === false,
+  }
+})()`)
+
+check(easyToggle.detailLabel.includes('くわしく'), 'トグルの初期表示は「くわしく」', easyToggle.detailLabel)
+check(easyToggle.easyLabel.includes('やさしく') && easyToggle.easyOn, 'トグルを押すと「やさしく」になる', easyToggle.easyLabel)
+check(
+  easyToggle.easyText !== easyToggle.detailText && easyToggle.easyText.length > 0,
+  '表示中のコーチ文がその場でやさしい版に書き換わる',
+  easyToggle.easyText.slice(0, 40),
+)
+check(easyToggle.stillAnswered, 'トグルしても判定表示は消えない (出題がやり直されない)')
+check(
+  easyToggle.easyHint !== easyToggle.detailHint && easyToggle.easyHint.length > 0,
+  'モードの説明文もやさしい版に切り替わる',
+  easyToggle.easyHint.slice(0, 40),
+)
+check(
+  easyToggle.easyRef !== easyToggle.detailRef && easyToggle.easyRef.includes('AQo'),
+  '定石ビューアの答えもやさしい版に切り替わる',
+  easyToggle.easyRef.slice(0, 40),
+)
+
+// やさしく のまま保存 → 読み戻せる
+check(
+  run(`(() => {
+    saveState({ ...freshState(), easyMode: true })
+    return loadState().easyMode === true
+  })()`),
+  '「やさしく」の設定が保存される',
+)
+check(run(`freshState().easyMode === false`), '初期値は「くわしく」')
+
+// 後片付け
+run(`commit({ ...state, easyMode: false, mode: 'rfi', focus: null }); renderEasy(state); renderModes(state, selectMode); selectReference(DRILLS[0].key); advance()`)
 
 check(run('el.glossaryBody.children.length') > 0, '用語解説が描画されている')
 check(run(`el.glossaryCount.textContent === String(GLOSSARY_TERM_COUNT)`), '用語数が見出しに出る')

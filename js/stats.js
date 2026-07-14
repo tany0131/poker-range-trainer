@@ -67,6 +67,7 @@ const freshState = () => ({
   history: [],
   reviewQueue: [],
   soundOn: true,
+  easyMode: false, // コーチの説明を専門用語なしの言い方に切り替える (答えは変わらない)
   mode: 'rfi',
   focus: null, // 特定スポットの狙い撃ち中はそのドリルキー
   daily: { date: todayKey(), log: [] }, // 今日の解答ログ。日替わりメニューの進捗はここから数える

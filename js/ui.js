@@ -56,6 +56,8 @@ const el = {
   next: document.getElementById('btn-next'),
   reset: document.getElementById('btn-reset'),
   sound: document.getElementById('btn-sound'),
+  easy: document.getElementById('btn-easy'),
+  intro: document.getElementById('intro'),
   verdict: document.getElementById('verdict'),
   chart: document.getElementById('chart'),
   daily: document.getElementById('daily'),
@@ -125,9 +127,8 @@ const renderModes = (state, onSelect) => {
   }
 
   const active = MODE_BY_ID[state.mode]
-  el.modeHint.textContent = active.boundaryOnly
-    ? `${active.hint} 対象は ${BOUNDARY_HANDS.length} ハンド。`
-    : active.hint
+  const hint = state.easyMode ? active.easyHint : active.hint
+  el.modeHint.textContent = active.boundaryOnly ? `${hint} 対象は ${BOUNDARY_HANDS.length} ハンド。` : hint
 }
 
 // ---- テーブル (実戦シミュレーション) ----
@@ -391,7 +392,7 @@ const verdictNoteText = (drill, question, grade) => {
   return `${drill.label} で ${question.hand} は ${correctLabel}。${share}`
 }
 
-const renderVerdict = (question, grade, chosenAction) => {
+const renderVerdict = (state, question, grade, chosenAction) => {
   const drill = DRILL_BY_KEY[question.drillKey]
 
   el.banner.className = `banner ${grade.isCorrect ? 'ok' : 'ng'}`
@@ -403,7 +404,7 @@ const renderVerdict = (question, grade, chosenAction) => {
   if (grade.isCorrect) {
     el.coach.hidden = true
   } else {
-    const advice = coachFor(drill, question.hand)
+    const advice = coachFor(drill, question.hand, state.easyMode)
     el.coachWhy.textContent = advice.why
     el.coachTip.textContent = advice.tip
     el.coach.hidden = false
@@ -531,6 +532,11 @@ const renderLeaks = (state) => {
 
 const renderSound = (state) => {
   el.sound.textContent = `効果音: ${state.soundOn ? 'ON' : 'OFF'}`
+}
+
+const renderEasy = (state) => {
+  el.easy.textContent = `説明: ${state.easyMode ? 'やさしく' : 'くわしく'}`
+  el.easy.classList.toggle('on', state.easyMode)
 }
 
 // ---- レンジの育ち方 ----
@@ -706,7 +712,7 @@ const renderRefButtons = (container, drills, selectedKey, onSelect, labelOf) => 
 
 // マスをタップしたときの「この手はなぜ？」。
 // 出題を待たなくても、19 スポット × 169 ハンドのどれでもコーチ文を引ける。
-const renderRefAnswer = (drill, hand) => {
+const renderRefAnswer = (drill, hand, isEasy) => {
   if (!hand) {
     el.refAnswer.hidden = true
     el.refPrompt.hidden = false
@@ -714,7 +720,7 @@ const renderRefAnswer = (drill, hand) => {
   }
 
   const action = drill.answerFor(hand)
-  const advice = coachFor(drill, hand)
+  const advice = coachFor(drill, hand, isEasy)
 
   el.refPrompt.hidden = true
   el.refAnswer.hidden = false
@@ -725,7 +731,7 @@ const renderRefAnswer = (drill, hand) => {
   el.refAnswerTip.textContent = advice.tip
 }
 
-const renderReference = (selectedKey, pickedHand, onSelect, onPick) => {
+const renderReference = (selectedKey, pickedHand, isEasy, onSelect, onPick) => {
   const drill = DRILL_BY_KEY[selectedKey]
 
   renderRefButtons(el.refRfi, RFI_DRILLS, selectedKey, onSelect, (d) => d.hero)
@@ -737,7 +743,7 @@ const renderReference = (selectedKey, pickedHand, onSelect, onPick) => {
 
   renderGridInto(el.refGrid, drill, pickedHand, onPick)
   renderLegendInto(el.refLegend, drill)
-  renderRefAnswer(drill, pickedHand)
+  renderRefAnswer(drill, pickedHand, isEasy)
 }
 
 // ---- よくある質問 ----
@@ -799,5 +805,6 @@ const renderDashboard = (state, onFocus) => {
   renderSpark(state)
   renderLeaks(state)
   renderSound(state)
+  renderEasy(state)
   renderStreak(state)
 }

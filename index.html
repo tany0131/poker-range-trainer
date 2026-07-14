@@ -12,6 +12,85 @@
       <h1>プリフロップ レンジトレーナー</h1>
       <p class="sub">6-max / 100bb / キャッシュゲーム。テーブルの状況を見て、フォールド・コール・レイズを選ぶ。</p>
 
+      <details class="card intro" id="intro">
+        <summary>はじめての人へ — ポーカーを知らなくても大丈夫</summary>
+        <div class="intro-body">
+          <h3>このアプリで何をするのか</h3>
+          <p>
+            ひとことで言うと、<strong>手札2枚を見て「参加するか、降りるか」を決める練習</strong>です。
+            ポーカーの1回の勝負は4段階ありますが、このアプリが扱うのは<strong>いちばん最初の段階だけ</strong>
+            (手札2枚が配られて、まだ場にカードが1枚も出ていない状態)。
+          </p>
+          <p>
+            ここが一番大事です。<strong>最初の判断を間違えると、その後どれだけ上手く打っても取り返せません。</strong>
+            逆に言えば、ここだけ覚えれば初心者を一段抜け出せます。
+          </p>
+
+          <h3>あなたが選ぶのは3つだけ</h3>
+          <table>
+            <thead>
+              <tr><th>選択肢</th><th>意味</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>フォールド</strong></td><td>降りる。この回はもう参加しない。損も出ない (すでに出した分を除く)</td></tr>
+              <tr><td><strong>コール</strong></td><td>相手と同じ額を払って、付いていく</td></tr>
+              <tr><td><strong>レイズ / 3ベット</strong></td><td>相手より高い額を出して、上から被せる</td></tr>
+            </tbody>
+          </table>
+          <p>
+            <strong>降りるのは負けではありません。</strong> 勝てない手で参加しないのが、一番確実に勝ちを増やす方法です。
+            実際、正解の大半は「降りる」です。
+          </p>
+
+          <h3>手札の書き方</h3>
+          <p>
+            強い順に <code>A K Q J T 9 8 7 6 5 4 3 2</code>。T は 10 のことです。
+          </p>
+          <table>
+            <thead>
+              <tr><th>表記</th><th>意味</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>77</code></td><td>7 が2枚 (ペア)</td></tr>
+              <tr><td><code>AKs</code></td><td>A と K で、<strong>マークがそろっている</strong> (s = suited)</td></tr>
+              <tr><td><code>AKo</code></td><td>A と K で、<strong>マークが違う</strong> (o = offsuit)</td></tr>
+            </tbody>
+          </table>
+          <p>
+            <strong>マークがそろっているだけで、手はぐっと強くなります。</strong>
+            同じマーク5枚を集める「フラッシュ」という強い役を狙えるからです。
+            このアプリで一番効く一言が <strong>「マークがそろっているかを最初に見る」</strong>。
+          </p>
+
+          <h3>席 (ポジション) がすべてを決める</h3>
+          <p>
+            6人で座っていて、話す順番が決まっています。
+            <code>UTG → HJ → CO → BTN → SB → BB</code> の順で、UTG が最初、BB が最後。
+            この席は<strong>1回ごとに1つずつずれていく</strong>ので、毎回変わります。
+          </p>
+          <p>
+            <strong>なぜ席が大事か。</strong> UTG で参加すると、まだうしろに5人も残っています。
+            その誰かが強い手を持っているかもしれない。だから<strong>よほど強い手しか出せません</strong>。
+            BTN ならうしろは2人だけなので、そこそこの手でも出せます。
+          </p>
+          <p>
+            つまり <strong>同じ手でも、席によって答えが変わります</strong>。これがプリフロップの本質で、
+            このアプリが練習させたいことのほぼ全部です。
+          </p>
+
+          <h3>まず何をすればいい？</h3>
+          <ol>
+            <li>右下の「説明」ボタンで <strong>やさしく</strong> を選ぶ (専門用語なしの解説になります)</li>
+            <li><strong>RFI</strong> モードで、まず 30 問くらい適当に答えてみる。間違えて構いません</li>
+            <li>間違えると「なぜ」と「覚え方」が出るので、それだけ読む</li>
+            <li>慣れてきたら <strong>境界特訓</strong> へ。ここが本当に覚える価値のある 54 ハンドです</li>
+          </ol>
+          <p>
+            分からない言葉が出てきたら、下の<strong>「用語解説」</strong>で調べられます (説明文からも検索できます)。
+          </p>
+        </div>
+      </details>
+
       <details class="card daily" id="daily" open>
         <summary>
           今日の特訓
@@ -522,15 +601,21 @@
         </div>
 
         <div class="controls">
-          <button id="btn-reset">成績をリセット</button>
+          <button id="btn-easy">説明: くわしく</button>
           <button id="btn-sound">効果音: ON</button>
+          <button id="btn-reset">成績をリセット</button>
         </div>
+        <p class="stats-note">
+          <strong>説明</strong>を「やさしく」にすると、間違えたときの解説と定石ビューアの答えが
+          <strong>専門用語なしの言い方</strong>に変わります。答えそのものは変わりません。
+        </p>
       </section>
     </main>
 
     <script src="js/ranges.js"></script>
     <script src="js/spots.js"></script>
     <script src="js/coach.js"></script>
+    <script src="js/coach-easy.js"></script>
     <script src="js/cards.js"></script>
     <script src="js/stats.js"></script>
     <script src="js/daily.js"></script>

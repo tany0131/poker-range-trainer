@@ -252,7 +252,9 @@ const sizingTip = (drill) => {
 
 // ---- エントリポイント ----
 
-const coachFor = (drill, hand) => {
+// くわしい版。やさしい版は coach-easy.js (easyCoachFor) にある。
+// 結論は必ず同じで、変えるのは説明の言葉づかいだけ。
+const detailCoachFor = (drill, hand) => {
   if (drill.type === 'sizing') {
     return { why: sizingWhy(drill), tip: sizingTip(drill) }
   }
@@ -271,3 +273,7 @@ const coachFor = (drill, hand) => {
 
   return { why, tip: vsRfiTip(drill, hand) }
 }
+
+// isEasy を渡すと、専門用語を使わない言い方に切り替える (答えは同じ)。
+const coachFor = (drill, hand, isEasy = false) =>
+  isEasy ? easyCoachFor(drill, hand) : detailCoachFor(drill, hand)

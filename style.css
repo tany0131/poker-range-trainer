@@ -875,6 +875,42 @@ tbody tr:last-child td {
   margin: 14px 0 0;
 }
 
+/* ---- はじめての人へ ---- */
+
+.intro-body {
+  padding: 0 20px 20px;
+  font-size: 14px;
+}
+
+.intro-body h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 20px 0 6px;
+}
+
+.intro-body h3:first-child {
+  margin-top: 0;
+}
+
+.intro-body p {
+  margin: 0 0 10px;
+  line-height: 1.8;
+}
+
+.intro-body ol {
+  margin: 0;
+  padding-left: 1.3em;
+  line-height: 1.9;
+}
+
+/* 「やさしく」が入っていることを、押す前から見て分かるようにする */
+#btn-easy.on {
+  background: var(--raise-dim);
+  border-color: var(--raise);
+  color: var(--text);
+}
+
 /* ---- 今日の特訓 ---- */
 
 .daily-body {
@@ -1231,7 +1267,8 @@ details.growth,
 details.reference,
 details.daily,
 details.glossary,
-details.faq {
+details.faq,
+details.intro {
   padding: 0;
 }
 
@@ -1240,7 +1277,8 @@ details.help > summary,
 details.reference > summary,
 details.daily > summary,
 details.glossary > summary,
-details.faq > summary {
+details.faq > summary,
+details.intro > summary {
   list-style: none;
   cursor: pointer;
   padding: 16px 20px;
@@ -1259,7 +1297,8 @@ details.help > summary::-webkit-details-marker,
 details.reference > summary::-webkit-details-marker,
 details.daily > summary::-webkit-details-marker,
 details.glossary > summary::-webkit-details-marker,
-details.faq > summary::-webkit-details-marker {
+details.faq > summary::-webkit-details-marker,
+details.intro > summary::-webkit-details-marker {
   display: none;
 }
 
@@ -1268,7 +1307,8 @@ details.help > summary::after,
 details.reference > summary::after,
 details.daily > summary::after,
 details.glossary > summary::after,
-details.faq > summary::after {
+details.faq > summary::after,
+details.intro > summary::after {
   content: '開く';
   font-size: 11px;
   font-weight: 400;
@@ -1281,7 +1321,8 @@ details.help[open] > summary::after,
 details.reference[open] > summary::after,
 details.daily[open] > summary::after,
 details.glossary[open] > summary::after,
-details.faq[open] > summary::after {
+details.faq[open] > summary::after,
+details.intro[open] > summary::after {
   content: '閉じる';
 }
 
@@ -1290,7 +1331,8 @@ details.help > summary:hover,
 details.reference > summary:hover,
 details.daily > summary:hover,
 details.glossary > summary:hover,
-details.faq > summary:hover {
+details.faq > summary:hover,
+details.intro > summary:hover {
   color: var(--text);
 }
 
@@ -1493,7 +1535,8 @@ button {
   .reference-body,
   .daily-body,
   .glossary-wrap,
-  .faq-wrap {
+  .faq-wrap,
+  .intro-body {
     padding: 0 14px 16px;
   }
 
@@ -1502,7 +1545,8 @@ button {
   details.reference > summary,
   details.daily > summary,
   details.glossary > summary,
-  details.faq > summary {
+  details.faq > summary,
+  details.intro > summary {
     padding: 14px;
   }
 
