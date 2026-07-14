@@ -97,6 +97,7 @@ vm.createContext(context)
 const SCRIPTS = [
   'js/ranges.js',
   'js/spots.js',
+  'js/coach.js',
   'js/cards.js',
   'js/stats.js',
   'js/quiz.js',
@@ -533,6 +534,72 @@ const sbRemovedReal = run(`
 `)
 check(sbRemovedReal, 'SB で消えると表示する手が、実際に BTN にあって SB にない')
 
+// ---- コーチ (間違えた時の「なぜ」と「覚え方」) ----
+
+// 全ドリル × 全ハンドで、なぜ/覚え方が必ず導出できる (空文字や例外がない)
+const coachGaps = run(`(() => {
+  const bad = []
+  for (const drill of DRILLS) {
+    for (const hand of UNIQUE_HANDS) {
+      try {
+        const advice = coachFor(drill, hand)
+        if (!advice.why || !advice.tip) bad.push(drill.key + ':' + hand)
+      } catch (e) {
+        bad.push(drill.key + ':' + hand + ':' + e.message)
+      }
+    }
+  }
+  return bad
+})()`)
+check(coachGaps.length === 0, '全ドリル × 全ハンドでコーチ文が導出できる', coachGaps.slice(0, 5).join(','))
+
+// なぜ: 代表ケースの内容がレンジデータと整合した説明になっている
+const coachCases = [
+  ['RFI_UTG', 'AA', '全席'], // 全席レイズ
+  ['RFI_UTG', '72o', 'どの席からも'], // 全席フォールド
+  ['RFI_UTG', '98o', 'BTN'], // 開けるのは BTN だけ → 最初に開ける席を言う
+  ['RFI_SB', 'Q3s', '後ろの席ほど広い'], // SB で消える 7 ハンド → 例外であることを言う
+  ['UTG_SB', '77', 'コール'], // SB は 3bet オアフォールド
+  ['UTG_BB', '76s', 'BB'], // BB のディフェンス理由
+  ['UTG_BTN', 'A4s', 'ブロック'], // ホイールエースはブロッカー付きブラフ枠
+  ['UTG_SB', 'KJo', 'ドミネート'], // オフスーツブロードウェイの罠
+]
+for (const [key, hand, needle] of coachCases) {
+  const why = run(`coachFor(DRILL_BY_KEY['${key}'], '${hand}').why`)
+  check(why.includes(needle), `コーチ ${key} ${hand}: なぜ に「${needle}」`, why)
+}
+
+// 覚え方: RFI は席ごとの ○✕ 一覧、境界ハンドなら両方の記号が出る
+const rfiTipLine = run(`coachFor(DRILL_BY_KEY['RFI_UTG'], '98o').tip`)
+check(rfiTipLine.includes('○') && rfiTipLine.includes('✕'), 'コーチ RFI: 境界ハンドの覚え方に ○ と ✕ が並ぶ', rfiTipLine)
+
+// 覚え方の ○✕ が実際のレンジと一致する (UTG ✕ / BTN ○ の 98o)
+check(rfiTipLine.includes('UTG ✕') && rfiTipLine.includes('BTN ○'), 'コーチ RFI: ○✕ がレンジと一致する', rfiTipLine)
+
+// オフスーツでつまずいたら「スーテッドは格上げ」を思い出させる
+const suitedContrast = run(`coachFor(DRILL_BY_KEY['RFI_UTG'], 'J9o').tip`)
+check(suitedContrast.includes('J9s'), 'コーチ RFI: オフスーツにはスーテッド版との対比が付く', suitedContrast)
+
+// vs RFI の覚え方: 同じ席でレイザー別の答えを並べ、実際の答えと一致する
+const vsTip = run(`coachFor(DRILL_BY_KEY['UTG_BB'], 'KTo').tip`)
+const vsTipTruth = run(`
+  VS_RFI_DRILLS.filter((d) => d.hero === 'BB').map((d) => d.raiser + '=' + d.answerFor('KTo'))
+`)
+check(vsTip.includes('vs UTG') && vsTip.includes('vs BTN'), 'コーチ vs RFI: レイザー別の一覧が出る', vsTip)
+check(
+  vsTipTruth.every((pair) => {
+    const [raiser, action] = pair.split('=')
+    const short = { threebet: '3ベット', call: 'コール', fold: '降り' }[action]
+    return vsTip.includes(`vs ${raiser} ${short}`)
+  }),
+  'コーチ vs RFI: 一覧の中身が answerFor と一致する',
+  vsTip,
+)
+
+// スポットが1つしかない席 (HJ) はレイザー固定で席ごとの違いを見せる
+const hjTip = run(`coachFor(DRILL_BY_KEY['UTG_HJ'], 'AQs').tip`)
+check(hjTip.includes('BB') && hjTip.includes('BTN'), 'コーチ vs RFI: HJ は席ごとの一覧にフォールバックする', hjTip)
+
 // ---- UI: 回答パスを実際に通す ----
 // main.js の answer() を叩いて、バナー / ボタンの色付け / 次へボタンまで描かれることを確認する。
 
@@ -549,6 +616,7 @@ const uiFlow = run(`(() => {
     mark: el.bannerMark.textContent,
     text: el.bannerText.textContent,
     marks: el.actions.children.map((b) => [b.dataset.action, [...b.classList._set].filter((c) => c.startsWith('is-'))]),
+    coachHidden: el.coach.hidden,
   }
 
   advance()
@@ -562,6 +630,9 @@ const uiFlow = run(`(() => {
     marks: el.actions.children.map((b) => [b.dataset.action, [...b.classList._set].filter((c) => c.startsWith('is-'))]),
     chosen: wrong2,
     correct: correct2,
+    coachHidden: el.coach.hidden,
+    coachWhy: el.coachWhy.textContent,
+    coachTip: el.coachTip.textContent,
   }
 
   return { okBanner, ngBanner }
@@ -588,6 +659,15 @@ check(
   ngChosen && ngChosen[1].includes('is-wrong'),
   '不正解時: 自分が押したボタンが赤になる',
   JSON.stringify(uiFlow.ngBanner.marks),
+)
+
+// コーチは間違えた時だけ出る
+check(uiFlow.okBanner.coachHidden === true, '正解時: コーチ (なぜ/覚え方) は出ない')
+check(uiFlow.ngBanner.coachHidden === false, '不正解時: コーチが表示される')
+check(
+  uiFlow.ngBanner.coachWhy.length > 0 && uiFlow.ngBanner.coachTip.length > 0,
+  '不正解時: なぜ と 覚え方 の両方に中身がある',
+  `why=${uiFlow.ngBanner.coachWhy.slice(0, 30)}… tip=${uiFlow.ngBanner.coachTip.slice(0, 30)}…`,
 )
 
 // 次の問題に進むと色付けがリセットされる

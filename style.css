@@ -465,6 +465,44 @@ button .key {
   font-weight: 600;
 }
 
+.coach {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+}
+
+.coach[hidden] {
+  display: none;
+}
+
+.coach-row {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.coach-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 1px 0;
+  text-align: center;
+  margin-top: 3px;
+}
+
+.coach-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
 .next {
   margin-top: 12px;
   width: 100%;

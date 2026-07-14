@@ -54,6 +54,9 @@ const el = {
   bannerMark: document.getElementById('banner-mark'),
   bannerText: document.getElementById('banner-text'),
   verdictNote: document.getElementById('verdict-note'),
+  coach: document.getElementById('coach'),
+  coachWhy: document.getElementById('coach-why'),
+  coachTip: document.getElementById('coach-tip'),
   grid: document.getElementById('grid'),
   legend: document.getElementById('legend'),
   statsRfi: document.getElementById('stats-rfi'),
@@ -299,6 +302,16 @@ const renderVerdict = (question, grade, chosenAction) => {
       : `このスポットで ${correctLabel} する手は全体の ${pctOf(drill.sets[grade.correctAction]).toFixed(0)}%。`
 
   el.verdictNote.textContent = `${drill.label} で ${question.hand} は ${correctLabel}。${share}`
+
+  // 間違えた時だけ、バナー直下に「なぜ」と「覚え方」を出す。正解時は次の問題への流れを止めない。
+  if (grade.isCorrect) {
+    el.coach.hidden = true
+  } else {
+    const advice = coachFor(drill, question.hand)
+    el.coachWhy.textContent = advice.why
+    el.coachTip.textContent = advice.tip
+    el.coach.hidden = false
+  }
 
   markActions(chosenAction, grade.correctAction)
   renderGrid(drill, question.hand)
