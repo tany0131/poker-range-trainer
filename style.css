@@ -383,6 +383,13 @@ button:disabled {
   border-color: var(--call);
 }
 
+/* サイズは4択なので、1つあたりを細くして横一列に収める */
+.action-btn.tone-size {
+  padding: 14px 4px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
 button .key {
   display: block;
   font-size: 11px;
@@ -527,6 +534,15 @@ button .key {
   margin-top: 10px;
   border-top: 1px solid var(--line);
   padding-top: 10px;
+}
+
+/* サイズの出題ではレンジ表を出さない (ハンドの表なので意味がない) */
+.chart[hidden] {
+  display: none;
+}
+
+.cards[hidden] {
+  display: none;
 }
 
 .chart > summary {
@@ -850,6 +866,179 @@ tbody tr:last-child td {
   margin: 14px 0 0;
 }
 
+/* ---- 今日の特訓 ---- */
+
+.daily-body {
+  padding: 0 20px 20px;
+}
+
+.daily-lead {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+.daily-streak {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: auto;
+  margin-right: 10px;
+}
+
+.daily-list {
+  display: grid;
+  gap: 6px;
+}
+
+.daily-task {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.daily-task:hover {
+  border-color: var(--accent);
+}
+
+.daily-task.complete {
+  opacity: 0.6;
+}
+
+.daily-mark {
+  flex: 0 0 20px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+}
+
+.daily-task.complete .daily-mark {
+  color: var(--raise);
+}
+
+.daily-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.daily-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.daily-hint {
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daily-bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.daily-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.daily-task.complete .daily-fill {
+  background: var(--raise);
+}
+
+.daily-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.daily-done {
+  margin: 12px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--raise);
+}
+
+/* ---- 用語解説 ---- */
+
+.glossary-wrap {
+  padding: 0 20px 20px;
+}
+
+.glossary-search {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  margin-bottom: 14px;
+}
+
+.glossary-search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.glossary-body h3 {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 18px 0 8px;
+}
+
+.glossary-body h3:first-child {
+  margin-top: 0;
+}
+
+.glossary-list {
+  margin: 0;
+}
+
+.glossary-list dt {
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 10px;
+}
+
+.glossary-list dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.glossary-empty {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+
 /* ---- 定石ビューア ---- */
 
 .reference-body {
@@ -917,13 +1106,17 @@ tbody tr:last-child td {
 
 details.help,
 details.growth,
-details.reference {
+details.reference,
+details.daily,
+details.glossary {
   padding: 0;
 }
 
 details.growth > summary,
 details.help > summary,
-details.reference > summary {
+details.reference > summary,
+details.daily > summary,
+details.glossary > summary {
   list-style: none;
   cursor: pointer;
   padding: 16px 20px;
@@ -939,13 +1132,17 @@ details.reference > summary {
 
 details.growth > summary::-webkit-details-marker,
 details.help > summary::-webkit-details-marker,
-details.reference > summary::-webkit-details-marker {
+details.reference > summary::-webkit-details-marker,
+details.daily > summary::-webkit-details-marker,
+details.glossary > summary::-webkit-details-marker {
   display: none;
 }
 
 details.growth > summary::after,
 details.help > summary::after,
-details.reference > summary::after {
+details.reference > summary::after,
+details.daily > summary::after,
+details.glossary > summary::after {
   content: '開く';
   font-size: 11px;
   font-weight: 400;
@@ -955,13 +1152,17 @@ details.reference > summary::after {
 
 details.growth[open] > summary::after,
 details.help[open] > summary::after,
-details.reference[open] > summary::after {
+details.reference[open] > summary::after,
+details.daily[open] > summary::after,
+details.glossary[open] > summary::after {
   content: '閉じる';
 }
 
 details.growth > summary:hover,
 details.help > summary:hover,
-details.reference > summary:hover {
+details.reference > summary:hover,
+details.daily > summary:hover,
+details.glossary > summary:hover {
   color: var(--text);
 }
 
@@ -1152,13 +1353,17 @@ button {
 
   .growth-body,
   .help-body,
-  .reference-body {
+  .reference-body,
+  .daily-body,
+  .glossary-wrap {
     padding: 0 14px 16px;
   }
 
   details.growth > summary,
   details.help > summary,
-  details.reference > summary {
+  details.reference > summary,
+  details.daily > summary,
+  details.glossary > summary {
     padding: 14px;
   }
 

@@ -61,7 +61,7 @@ for (const file of ['dist/trainer.html', 'dist/artifact.html']) {
   const store = new Map()
   const context = {
     console: { log() {} },
-    Math, JSON, Object, Array, Set, Map, String, Number, Error,
+    Math, JSON, Object, Array, Set, Map, String, Number, Error, Date,
     localStorage: {
       getItem: (k) => (store.has(k) ? store.get(k) : null),
       setItem: (k, v) => store.set(k, String(v)),
@@ -105,6 +105,18 @@ for (const file of ['dist/trainer.html', 'dist/artifact.html']) {
   )
   check(run('RFI_STEPS[4].removed.size') === 7, `${file}: SB で消える手が 7`, String(run('RFI_STEPS[4].removed.size')))
   check(run('current !== null'), `${file}: 初回の出題が生成されている`)
+
+  // 後から足したファイル (coach / daily / glossary) がインライン化で落ちていないか
+  check(run('SIZING_DRILLS.length') === 19, `${file}: サイズが 19 スポット`, String(run('SIZING_DRILLS.length')))
+  check(
+    run(`DRILL_BY_KEY['SIZE_CO_BTN'].answer === '7.5bb' && DRILL_BY_KEY['SIZE_UTG_BB'].answer === '10bb'`),
+    `${file}: サイズが IP 7.5bb / OOP 10bb`,
+  )
+  check(run(`coachFor(DRILL_BY_KEY['RFI_UTG'], '98o').why.length > 0`), `${file}: コーチ文が出る`)
+  check(run('dailyTasks(state).length') === 4, `${file}: 今日のメニューが 4 タスク`)
+  check(run('GLOSSARY_TERM_COUNT') > 25, `${file}: 用語解説が入っている`, `${run('GLOSSARY_TERM_COUNT')} 語`)
+  check(run('el.dailyList.children.length') === 4, `${file}: メニューが描画されている`)
+  check(run('el.glossaryBody.children.length') > 0, `${file}: 用語解説が描画されている`)
 }
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`)

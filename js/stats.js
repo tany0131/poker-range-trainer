@@ -1,6 +1,7 @@
 // 成績の保持・永続化・弱点分析。ドリル (状況) 単位で集計する。
 
 const STORAGE_KEY = 'poker-range-trainer/v3'
+const DAILY_LOG_CAP = 400
 const TARGET_RATE = 0.95
 const HISTORY_CAP = 300
 const SPARK_WINDOW = 20
@@ -22,8 +23,31 @@ const AGGRESSION = { fold: 0, call: 1, threebet: 2, raise: 2 }
 const errorDirection = (chosenAction, correctAction) =>
   AGGRESSION[chosenAction] > AGGRESSION[correctAction] ? ERROR_TOO_LOOSE : ERROR_TOO_TIGHT
 
+// ---- 日付 ----
+// 「今日」はローカル日付で数える (UTC だと日本の朝がまだ前日になってしまう)。
+
+const dateKeyOf = (date) => {
+  const pad = (n) => (n < 10 ? `0${n}` : String(n))
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+const todayKey = () => dateKeyOf(new Date())
+
+const yesterdayKey = () => {
+  const date = new Date()
+  date.setDate(date.getDate() - 1)
+  return dateKeyOf(date)
+}
+
+// 日付キーを通し番号に直す。日替わりメニューのローテーションに使う。
+const dayNumberOf = (key) => {
+  const [year, month, day] = key.split('-').map(Number)
+  return Math.floor(Date.UTC(year, month - 1, day) / 86400000)
+}
+
+// byDrill はサイズのドリルも数える。byCategory (弱点分析) はレンジのドリルだけ。
 const emptyDrillStats = () =>
-  Object.fromEntries(DRILLS.map((d) => [d.key, { asked: 0, correct: 0 }]))
+  Object.fromEntries(ALL_DRILLS.map((d) => [d.key, { asked: 0, correct: 0 }]))
 
 const emptyCategoryStats = () =>
   Object.fromEntries(
@@ -45,7 +69,13 @@ const freshState = () => ({
   soundOn: true,
   mode: 'rfi',
   focus: null, // 特定スポットの狙い撃ち中はそのドリルキー
+  daily: { date: todayKey(), log: [] }, // 今日の解答ログ。日替わりメニューの進捗はここから数える
+  dailyStreak: { date: null, days: 0 }, // メニューを完走した最終日と連続日数
 })
+
+// 日付が変わっていれば今日のログは空。日付をまたいだ瞬間にメニューが自動でリセットされる。
+const dailyLog = (state) =>
+  state.daily && state.daily.date === todayKey() ? state.daily.log : []
 
 // 保存データにドリルが足りない/多い場合に形をそろえる (レンジを足したときに古い保存が残るため)。
 const reconcile = (state) => {
@@ -53,8 +83,11 @@ const reconcile = (state) => {
   next.byDrill = { ...emptyDrillStats(), ...next.byDrill }
   next.byCategory = { ...emptyCategoryStats(), ...next.byCategory }
 
-  for (const drill of DRILLS) {
+  for (const drill of ALL_DRILLS) {
     if (!next.byDrill[drill.key]) next.byDrill[drill.key] = { asked: 0, correct: 0 }
+  }
+
+  for (const drill of DRILLS) {
     const categories = next.byCategory[drill.key] || {}
     for (const category of CATEGORIES) {
       if (!categories[category.id]) {
@@ -67,6 +100,15 @@ const reconcile = (state) => {
   // 消えたドリルの復習・狙い撃ちは捨てる
   next.reviewQueue = (next.reviewQueue || []).filter((item) => DRILL_BY_KEY[item.drillKey])
   if (next.focus && !DRILL_BY_KEY[next.focus]) next.focus = null
+
+  const daily = next.daily || {}
+  next.daily = {
+    date: daily.date || todayKey(),
+    log: (daily.log || []).filter((entry) => entry && DRILL_BY_KEY[entry.drillKey]),
+  }
+  const streak = next.dailyStreak || {}
+  next.dailyStreak = { date: streak.date || null, days: streak.days || 0 }
+
   return next
 }
 
@@ -92,22 +134,19 @@ const saveState = (state) => {
   }
 }
 
-// 1問ぶんの結果を畳み込む。state は書き換えず新しい値を返す。
-const recordAnswer = (state, { drillKey, hand, chosenAction, correctAction, isCorrect }) => {
+// サイズのドリルは「ミスの向き (強すぎ/弱すぎ)」を持たない (額に強弱の一直線がないため)。
+// ハンドにも依存しないので、ハンド分類ごとの弱点分析からは外す。
+const isRangeDrill = (drillKey) => DRILL_BY_KEY[drillKey].type !== 'sizing'
+
+// ハンド分類ごとの集計を1問ぶん進める。サイズのドリルはそのまま返す。
+const foldCategory = (state, drillKey, hand, chosenAction, correctAction, isCorrect) => {
+  if (!isRangeDrill(drillKey)) return state.byCategory
+
   const category = categoryOf(hand)
-  const drillStat = state.byDrill[drillKey]
   const categoryStat = state.byCategory[drillKey][category.id]
-
-  const nextDrill = {
-    ...state.byDrill,
-    [drillKey]: {
-      asked: drillStat.asked + 1,
-      correct: drillStat.correct + (isCorrect ? 1 : 0),
-    },
-  }
-
   const errorKey = isCorrect ? null : errorDirection(chosenAction, correctAction)
-  const nextCategory = {
+
+  return {
     ...state.byCategory,
     [drillKey]: {
       ...state.byCategory[drillKey],
@@ -117,6 +156,29 @@ const recordAnswer = (state, { drillKey, hand, chosenAction, correctAction, isCo
         [ERROR_TOO_LOOSE]: categoryStat[ERROR_TOO_LOOSE] + (errorKey === ERROR_TOO_LOOSE ? 1 : 0),
         [ERROR_TOO_TIGHT]: categoryStat[ERROR_TOO_TIGHT] + (errorKey === ERROR_TOO_TIGHT ? 1 : 0),
       },
+    },
+  }
+}
+
+// 今日のログを1問ぶん進める。日付が変わっていればここで捨てて新しい日を始める。
+const foldDaily = (state, drillKey) => {
+  const today = todayKey()
+  const log = dailyLog(state)
+  return {
+    date: today,
+    log: [...log, { drillKey, mode: state.mode }].slice(-DAILY_LOG_CAP),
+  }
+}
+
+// 1問ぶんの結果を畳み込む。state は書き換えず新しい値を返す。
+const recordAnswer = (state, { drillKey, hand, chosenAction, correctAction, isCorrect }) => {
+  const drillStat = state.byDrill[drillKey]
+
+  const nextDrill = {
+    ...state.byDrill,
+    [drillKey]: {
+      asked: drillStat.asked + 1,
+      correct: drillStat.correct + (isCorrect ? 1 : 0),
     },
   }
 
@@ -130,10 +192,11 @@ const recordAnswer = (state, { drillKey, hand, chosenAction, correctAction, isCo
   return {
     ...state,
     byDrill: nextDrill,
-    byCategory: nextCategory,
+    byCategory: foldCategory(state, drillKey, hand, chosenAction, correctAction, isCorrect),
     streak: nextStreak,
     history: nextHistory,
     reviewQueue: nextQueue,
+    daily: foldDaily(state, drillKey),
   }
 }
 

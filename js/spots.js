@@ -13,6 +13,12 @@ const POSITIONS = [
 const POSITION_INDEX = Object.fromEntries(POSITIONS.map((p, i) => [p.id, i]))
 const positionOf = (id) => POSITIONS[POSITION_INDEX[id]]
 
+// フロップ以降の行動順はプリフロップと違う (ブラインドが先に動く)。
+// サイズはポジションの有無で決まるので、こちらの順序で判定する。
+const POSTFLOP_ORDER = ['SB', 'BB', 'UTG', 'HJ', 'CO', 'BTN']
+const POSTFLOP_INDEX = Object.fromEntries(POSTFLOP_ORDER.map((id, i) => [id, i]))
+const isHeroInPosition = (hero, raiser) => POSTFLOP_INDEX[hero] > POSTFLOP_INDEX[raiser]
+
 // ---- RFI (自分より前が全員フォールド。オープンレイズするか) ----
 // 6-max 100bb。combos 比が公開チャートの帯 (UTG 15-17 / HJ 19-22 / CO 25-30 / BTN 40-48 / SB 39-47%)
 // に収まること、および UTG ⊂ HJ ⊂ CO ⊂ BTN を検算済み (tools/verify.mjs)。
@@ -174,7 +180,69 @@ const buildVsRfiDrill = (key) => {
 const RFI_DRILLS = Object.keys(RFI_SPECS).map(buildRfiDrill)
 const VS_RFI_DRILLS = Object.keys(VS_RFI_SPECS).map(buildVsRfiDrill)
 const DRILLS = [...RFI_DRILLS, ...VS_RFI_DRILLS]
-const DRILL_BY_KEY = Object.fromEntries(DRILLS.map((d) => [d.key, d]))
+
+// ---- サイズ (いくら賭けるか) ----
+//
+// サイズはレンジと違って「どの手か」に依存しない (同じ額で打つから読まれない)。
+// なので出題にハンドを出さない — 覚える中身は下の 2 本の規則だけで、
+// カードを見せると「手によって額が変わる」という誤った印象を与える。
+//
+//  - オープン: 2.5bb。SB だけ 3bb (BB がすでに 1bb 出していて安く見に来られるため高く払わせる)
+//  - 3ベット: オープン額の IP 3x / OOP (ブラインド) 4x。
+//    OOP ほど大きくするのは、位置が悪いとフロップ以降でエクイティを実現しづらいから。
+//    降ろす確率を上げ、続けるなら高く払わせる。
+//
+// vs RFI のオープンは全スポットで 2.5bb (レイザーは UTG/HJ/CO/BTN のみ) なので、
+// 3ベット額は IP 7.5bb / OOP 10bb の 2 通りに収まる。
+const OPEN_SIZE_OPTIONS = ['2bb', '2.5bb', '3bb', '4bb']
+const THREEBET_SIZE_OPTIONS = ['5bb', '7.5bb', '10bb', '13bb']
+const THREEBET_SIZE = { ip: '7.5bb', oop: '10bb' }
+
+const sizeActions = (options) =>
+  options.map((size, index) => ({ id: size, label: size, hotkey: String(index + 1), tone: 'size' }))
+
+const buildSizingDrill = (spot) => {
+  const isOpen = spot.type === 'rfi'
+  const options = isOpen ? OPEN_SIZE_OPTIONS : THREEBET_SIZE_OPTIONS
+
+  const answer = isOpen
+    ? raiseSizeFor(spot.hero)
+    : isHeroInPosition(spot.hero, spot.raiser)
+      ? THREEBET_SIZE.ip
+      : THREEBET_SIZE.oop
+
+  if (!options.includes(answer)) throw new Error(`${spot.key}: サイズ ${answer} が選択肢にない`)
+
+  return {
+    key: `SIZE_${spot.key}`,
+    type: 'sizing',
+    hero: spot.hero,
+    raiser: spot.raiser,
+    label: spot.label,
+    title: isOpen
+      ? `${spot.hero} でオープンレイズ。いくらにするか`
+      : `${spot.raiser} のレイズに ${spot.hero} が 3ベット。いくらにするか`,
+    note: isOpen
+      ? `${positionOf(spot.hero).full}。`
+      : `${spot.hero} は ${isHeroInPosition(spot.hero, spot.raiser) ? 'IP (相手より後に動ける)' : 'OOP (相手より先に動く)'}。オープンは ${raiseSizeFor(spot.raiser)}。`,
+    actions: sizeActions(options),
+    answer,
+    answerFor: () => answer,
+    // 当てずっぽうで取れてしまう正解率。レンジのドリルの foldBaseline と同じ役割。
+    foldBaseline: 100 / options.length,
+  }
+}
+
+const SIZING_DRILLS = DRILLS.map(buildSizingDrill)
+
+// レンジのドリルとサイズのドリルは集計の性質が違う (サイズにはミスの向きが無い) ので、
+// 弱点分析が回る DRILLS とは分けたまま、キー引きだけ全部まとめる。
+const ALL_DRILLS = [...DRILLS, ...SIZING_DRILLS]
+const DRILL_BY_KEY = Object.fromEntries(ALL_DRILLS.map((d) => [d.key, d]))
+
+// そのドリルを出題できるモード。狙い撃ちや日替わりメニューから飛ぶときに使う。
+const defaultModeFor = (drill) =>
+  drill.type === 'sizing' ? 'sizing' : drill.type === 'rfi' ? 'rfi' : 'vsrfi'
 
 // レンジの「育ち方」。席が1つ進むと何が増えて何が消えるか。
 // UTG ⊂ HJ ⊂ CO ⊂ BTN は成り立つが、SB は BTN の上位互換ではない (消える手がある) ので

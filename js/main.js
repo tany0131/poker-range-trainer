@@ -41,8 +41,12 @@ function answer(chosenAction) {
     playTone(grade.isCorrect ? (hitStreak ? 'streak' : 'correct') : 'wrong')
   }
 
+  // メニューを完走した瞬間に連続日数を伸ばす (完走判定は今日のログから毎回作り直す)
+  commit(bumpDailyStreak(state))
+
   renderVerdict(current, grade, chosenAction)
   renderDashboard(state, selectFocus)
+  renderDaily(state, startDailyTask)
 }
 
 const selectMode = (modeId) => {
@@ -61,11 +65,20 @@ function selectFocus(drillKey) {
   // 狙い撃ち対象が今のモードに含まれていなければ、モードごと合わせる
   const drill = DRILL_BY_KEY[drillKey]
   const modeFits = MODE_BY_ID[state.mode].drills().some((d) => d.key === drillKey)
-  const mode = next && !modeFits ? (drill.type === 'rfi' ? 'rfi' : 'vsrfi') : state.mode
+  const mode = next && !modeFits ? defaultModeFor(drill) : state.mode
 
   commit({ ...state, focus: next, mode })
   renderModes(state, selectMode)
   renderDashboard(state, selectFocus)
+  advance()
+}
+
+// 日替わりメニューの行をタップ → そのモード / 狙い撃ちに切り替えて出題を始める。
+function startDailyTask(task) {
+  commit({ ...state, mode: task.mode, focus: task.focus })
+  renderModes(state, selectMode)
+  renderDashboard(state, selectFocus)
+  renderDaily(state, startDailyTask)
   advance()
 }
 
@@ -80,8 +93,11 @@ el.focusClear.addEventListener('click', () => {
 el.reset.addEventListener('click', () => {
   commit({ ...freshState(), mode: state.mode, soundOn: state.soundOn })
   renderDashboard(state, selectFocus)
+  renderDaily(state, startDailyTask)
   advance()
 })
+
+el.glossarySearch.addEventListener('input', () => renderGlossary(el.glossarySearch.value))
 
 el.sound.addEventListener('click', () => {
   commit({ ...state, soundOn: !state.soundOn })
@@ -124,8 +140,10 @@ const selectReference = (drillKey) => {
 }
 
 renderHelp()
+renderGlossary()
 renderGrowth(growthStep, selectGrowthStep)
 renderReference(referenceKey, selectReference)
 renderModes(state, selectMode)
-renderDashboard(state)
+renderDashboard(state, selectFocus)
+renderDaily(state, startDailyTask)
 advance()

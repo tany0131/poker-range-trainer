@@ -23,6 +23,13 @@ const MODES = [
     hint: '誰かが先にレイズ済み。フォールド / コール / 3ベットの3択。RFI の次に頻度が高い場面。',
   },
   {
+    id: 'sizing',
+    label: 'サイズ',
+    drills: () => SIZING_DRILLS,
+    noHand: true,
+    hint: 'いくら賭けるか。サイズは手に依存しない (同じ額で打つから読まれない) ので、ここではカードを配らない。覚えるのは オープン 2.5bb (SB だけ 3bb) と 3ベット IP 3x / OOP 4x の2本だけ。',
+  },
+  {
     id: 'mixed',
     label: 'ミックス',
     drills: () => DRILLS,
@@ -53,11 +60,10 @@ const drawFresh = (modeId, focusKey = null) => {
   const mode = MODE_BY_ID[modeId] || MODE_BY_ID.rfi
   const drill = focusKey && DRILL_BY_KEY[focusKey] ? DRILL_BY_KEY[focusKey] : randomOf(mode.drills())
 
-  return {
-    drillKey: drill.key,
-    hand: mode.boundaryOnly ? drawBoundaryHand() : drawWeightedHand(),
-    isReview: false,
-  }
+  // サイズはハンドに依存しないので配らない (配ると「手で額が変わる」と誤解させる)。
+  const hand = mode.noHand ? null : mode.boundaryOnly ? drawBoundaryHand() : drawWeightedHand()
+
+  return { drillKey: drill.key, hand, isReview: false }
 }
 
 // 間違えたハンドは優先キューに入り、一定確率で再出題される (軽い間隔反復)。

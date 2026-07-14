@@ -75,6 +75,7 @@ const context = {
   String,
   Number,
   Error,
+  Date, // 日替わりメニューが「今日」を数えるのに要る
   localStorage: {
     getItem: (k) => (store.has(k) ? store.get(k) : null),
     setItem: (k, v) => store.set(k, String(v)),
@@ -100,6 +101,8 @@ const SCRIPTS = [
   'js/coach.js',
   'js/cards.js',
   'js/stats.js',
+  'js/daily.js',
+  'js/glossary.js',
   'js/quiz.js',
   'js/audio.js',
   'js/ui.js',
@@ -600,6 +603,264 @@ check(
 const hjTip = run(`coachFor(DRILL_BY_KEY['UTG_HJ'], 'AQs').tip`)
 check(hjTip.includes('BB') && hjTip.includes('BTN'), 'コーチ vs RFI: HJ は席ごとの一覧にフォールバックする', hjTip)
 
+// ---- サイズ ----
+
+check(run('SIZING_DRILLS.length') === 19, 'サイズは全 19 スポットぶんある', String(run('SIZING_DRILLS.length')))
+check(run('ALL_DRILLS.length') === 38, 'ALL_DRILLS = レンジ 19 + サイズ 19')
+check(run(`DRILLS.every((d) => d.type !== 'sizing')`), 'DRILLS (弱点分析が回る側) にサイズは混ざらない')
+
+// 教えている規則そのもの: オープン 2.5bb (SB だけ 3bb) / 3ベット IP 7.5bb・OOP 10bb
+const sizingAnswers = run(`SIZING_DRILLS.map((d) => [d.key, d.hero, d.raiser, d.answer])`)
+const sizingBad = sizingAnswers.filter(([, hero, raiser, answer]) => {
+  const expected = raiser === null
+    ? hero === 'SB' ? '3bb' : '2.5bb'
+    : hero === 'SB' || hero === 'BB' ? '10bb' : '7.5bb'
+  return answer !== expected
+})
+check(sizingBad.length === 0, 'サイズ: オープン 2.5bb (SB 3bb) / 3bet IP 7.5bb・OOP 10bb', sizingBad.map(([k]) => k).join(','))
+
+// IP/OOP の判定がフロップ以降の行動順から出ていること (ブラインドだけが OOP になる)
+const oopHeroes = run(`VS_RFI_DRILLS.filter((d) => !isHeroInPosition(d.hero, d.raiser)).map((d) => d.hero)`)
+check(
+  oopHeroes.every((h) => h === 'SB' || h === 'BB') && oopHeroes.length > 0,
+  'サイズ: vs RFI で OOP になるのはブラインドだけ',
+  [...new Set(oopHeroes)].join(','),
+)
+
+// 正解が必ず選択肢の中にある / 当てずっぽうの基準が 25%
+const sizingOptionBad = run(`SIZING_DRILLS.filter((d) => !d.actions.some((a) => a.id === d.answer)).map((d) => d.key)`)
+check(sizingOptionBad.length === 0, 'サイズ: 正解が必ず選択肢に含まれる', sizingOptionBad.join(','))
+check(
+  run(`SIZING_DRILLS.every((d) => d.actions.length === 4 && Math.abs(d.foldBaseline - 25) < 0.01)`),
+  'サイズ: 4択で、当てずっぽうの基準が 25%',
+)
+
+// サイズの出題はハンドを配らない
+const sizingDraws = run(`(() => {
+  const hands = new Set()
+  const keys = new Set()
+  for (let i = 0; i < 2000; i++) {
+    const q = drawFresh('sizing')
+    hands.add(q.hand)
+    keys.add(q.drillKey)
+  }
+  return { hands: [...hands], keyCount: keys.size }
+})()`)
+check(
+  sizingDraws.hands.length === 1 && sizingDraws.hands[0] === null,
+  'サイズの出題はハンドを配らない (額は手に依存しないため)',
+  JSON.stringify(sizingDraws.hands.slice(0, 3)),
+)
+check(sizingDraws.keyCount === 19, 'サイズモードは 19 スポット全部を出す', String(sizingDraws.keyCount))
+
+// 採点はハンドに依存しない (どんな hand を渡しても同じ答え)
+check(
+  run(`(() => {
+    const d = DRILL_BY_KEY['SIZE_CO_BTN']
+    return ['AA', '72o', null].every((h) => gradeAnswer({ drillKey: 'SIZE_CO_BTN', hand: h }, '7.5bb').isCorrect)
+  })()`),
+  'サイズの採点はハンドに依存しない',
+)
+
+// サイズを間違えても「消極的 / 手が出すぎ」の弱点分析を汚さない (額に強弱の一直線がないため)
+const sizingNoLeak = run(`(() => {
+  let s = freshState()
+  for (const d of SIZING_DRILLS) {
+    const wrong = d.actions.map((a) => a.id).find((a) => a !== d.answer)
+    for (let i = 0; i < 10; i++) {
+      s = recordAnswer(s, { drillKey: d.key, hand: null, chosenAction: wrong, correctAction: d.answer, isCorrect: false })
+    }
+  }
+  return { tendency: overallTendency(s), leaks: findLeaks(s).length, asked: s.byDrill['SIZE_RFI_UTG'].asked }
+})()`)
+check(sizingNoLeak.tendency === null, 'サイズのミスは「消極的/手が出すぎ」の診断を汚さない', String(sizingNoLeak.tendency))
+check(sizingNoLeak.leaks === 0, 'サイズのミスはハンド分類の弱点に出ない', `${sizingNoLeak.leaks} 件`)
+check(sizingNoLeak.asked === 10, 'サイズも成績 (byDrill) には数える', String(sizingNoLeak.asked))
+
+// サイズのコーチ文
+const sizeCoachSb = run(`coachFor(DRILL_BY_KEY['SIZE_RFI_SB'], null).why`)
+check(sizeCoachSb.includes('1bb'), 'コーチ サイズ: SB の 3bb は「BB がすでに 1bb 出している」で説明する', sizeCoachSb)
+const sizeCoachOop = run(`coachFor(DRILL_BY_KEY['SIZE_UTG_BB'], null).why`)
+check(sizeCoachOop.includes('OOP') && sizeCoachOop.includes('4x'), 'コーチ サイズ: OOP は 4x と説明する', sizeCoachOop)
+const sizeCoachIp = run(`coachFor(DRILL_BY_KEY['SIZE_CO_BTN'], null).why`)
+check(sizeCoachIp.includes('IP') && sizeCoachIp.includes('3x'), 'コーチ サイズ: IP は 3x と説明する', sizeCoachIp)
+
+// ---- 用語解説 ----
+
+check(run('GLOSSARY_TERM_COUNT') > 25, '用語が十分な数ある', `${run('GLOSSARY_TERM_COUNT')} 語`)
+check(
+  run(`GLOSSARY.every((g) => g.section && g.terms.every((t) => t.term && t.def && t.def.length > 30))`),
+  '全用語に見出しと (使いものになる長さの) 定義がある',
+)
+check(run(`searchGlossary('').reduce((n, g) => n + g.terms.length, 0)`) === run('GLOSSARY_TERM_COUNT'), '検索が空なら全件返す')
+check(
+  run(`searchGlossary('ドミネート').reduce((n, g) => n + g.terms.length, 0)`) > 0,
+  '用語名で検索できる',
+)
+check(
+  run(`searchGlossary('ブロック').reduce((n, g) => n + g.terms.length, 0)`) > 0,
+  '説明文の中身でも検索できる',
+)
+check(run(`searchGlossary('ぽよよん').length`) === 0, '当たらない検索は空を返す')
+
+// 画面に出てくる言葉が用語集に載っているか (「見出しだけ知っていて中身を知らない」を作らない)
+const glossaryText = run(`JSON.stringify(GLOSSARY)`)
+for (const term of ['RFI', '3ベット', 'IP', 'OOP', 'combos', 'ドミネート', 'ブロッカー', 'ホイール', '境界ハンド', 'エクイティ', 'ポットオッズ', '混合戦略']) {
+  check(glossaryText.includes(term), `用語集に「${term}」がある`)
+}
+
+// ---- 毎日の特訓メニュー ----
+
+const dailyFresh = run(`dailyTasks(freshState())`)
+check(dailyFresh.length === 4, '今日のメニューは 4 タスク', String(dailyFresh.length))
+check(
+  dailyFresh.every((t) => t.target > 0 && t.done === 0 && t.isComplete === false),
+  '始めたばかりなら進捗ゼロ・未完了',
+)
+check(
+  dailyFresh.map((t) => t.id).join(',') === 'boundary,spot,weak,sizing',
+  'メニューの並びは 境界 → 今日のスポット → 弱点 → サイズ',
+  dailyFresh.map((t) => t.id).join(','),
+)
+
+// タスクの mode / focus が実際にそのモードで出題できる組み合わせになっている
+const dailyRoutable = run(`dailyTasks(freshState()).every((t) => {
+  const mode = MODE_BY_ID[t.mode]
+  if (!mode) return false
+  if (!t.focus) return true
+  return mode.drills().some((d) => d.key === t.focus)
+})`)
+check(dailyRoutable, 'メニューの各タスクが、その mode で出題できる focus を指している')
+
+// 「今日のスポット」と「弱点」が同じスポットにならない
+check(
+  run(`(() => {
+    const tasks = dailyTasks(freshState())
+    return tasks[1].focus !== tasks[2].focus
+  })()`),
+  '「今日のスポット」と「弱点」が重複しない',
+)
+
+// 進捗は普通に練習しているだけで埋まる (タスクを開始しなくても数える)
+const dailyProgress = run(`(() => {
+  let s = { ...freshState(), mode: 'boundary' }
+  for (let i = 0; i < 5; i++) {
+    s = recordAnswer(s, { drillKey: 'RFI_UTG', hand: 'AA', chosenAction: 'raise', correctAction: 'raise', isCorrect: true })
+  }
+  const boundary = dailyTasks(s).find((t) => t.id === 'boundary')
+  return { done: boundary.done, target: boundary.target, complete: boundary.isComplete }
+})()`)
+check(dailyProgress.done === 5, '境界モードで解くとメニューの進捗が進む', `${dailyProgress.done}/${dailyProgress.target}`)
+check(dailyProgress.complete === false, '目標に届くまでは未完了')
+
+// サイズモードの進捗はサイズのタスクだけを進める
+const dailySizing = run(`(() => {
+  let s = { ...freshState(), mode: 'sizing' }
+  for (let i = 0; i < 10; i++) {
+    s = recordAnswer(s, { drillKey: 'SIZE_RFI_UTG', hand: null, chosenAction: '2.5bb', correctAction: '2.5bb', isCorrect: true })
+  }
+  const tasks = dailyTasks(s)
+  return {
+    sizing: tasks.find((t) => t.id === 'sizing'),
+    boundary: tasks.find((t) => t.id === 'boundary').done,
+  }
+})()`)
+check(dailySizing.sizing.isComplete, 'サイズを 10 問解くとサイズのタスクが完了する', `${dailySizing.sizing.done}/${dailySizing.sizing.target}`)
+check(dailySizing.boundary === 0, 'サイズの進捗が境界のタスクに漏れない')
+
+// 全タスクを埋めると完走 → 連続日数が 1 になる
+const dailyDone = run(`(() => {
+  let s = freshState()
+  const fill = (task) => {
+    const drillKey = task.focus || (task.id === 'sizing' ? 'SIZE_RFI_UTG' : 'RFI_UTG')
+    const drill = DRILL_BY_KEY[drillKey]
+    const hand = drill.type === 'sizing' ? null : 'AA'
+    const correct = drill.answerFor(hand)
+    s = { ...s, mode: task.mode }
+    for (let i = 0; i < task.target; i++) {
+      s = recordAnswer(s, { drillKey, hand, chosenAction: correct, correctAction: correct, isCorrect: true })
+    }
+  }
+  for (const task of dailyTasks(s)) fill(task)
+
+  const before = isDailyComplete(s)
+  s = bumpDailyStreak(s)
+  const afterFirst = s.dailyStreak.days
+  s = bumpDailyStreak(s) // 同じ日に何度呼んでも増えない
+  return { before, afterFirst, afterSecond: s.dailyStreak.days, date: s.dailyStreak.date }
+})()`)
+check(dailyDone.before === true, '4タスクすべて目標に届くとメニュー完走と判定される')
+check(dailyDone.afterFirst === 1, '完走すると連続日数が 1 になる', String(dailyDone.afterFirst))
+check(dailyDone.afterSecond === 1, '同じ日に何度完走しても連続日数は増えない', String(dailyDone.afterSecond))
+check(dailyDone.date === run('todayKey()'), '完走日が今日として記録される')
+
+// 昨日完走していれば連続日数が伸び、間が空けば 1 に戻る
+const streakChain = run(`(() => {
+  const base = { ...freshState(), dailyStreak: { date: yesterdayKey(), days: 4 } }
+  const gapped = { ...freshState(), dailyStreak: { date: '2020-01-01', days: 9 } }
+  // isDailyComplete を通すために、完走済みのログを直接与える
+  const complete = (s) => {
+    let next = s
+    for (const task of dailyTasks(s)) {
+      const drillKey = task.focus || (task.id === 'sizing' ? 'SIZE_RFI_UTG' : 'RFI_UTG')
+      const drill = DRILL_BY_KEY[drillKey]
+      const hand = drill.type === 'sizing' ? null : 'AA'
+      const correct = drill.answerFor(hand)
+      next = { ...next, mode: task.mode }
+      for (let i = 0; i < task.target; i++) {
+        next = recordAnswer(next, { drillKey, hand, chosenAction: correct, correctAction: correct, isCorrect: true })
+      }
+    }
+    return next
+  }
+  return {
+    continued: bumpDailyStreak(complete(base)).dailyStreak.days,
+    reset: bumpDailyStreak(complete(gapped)).dailyStreak.days,
+  }
+})()`)
+check(streakChain.continued === 5, '昨日完走していれば連続日数が伸びる', String(streakChain.continued))
+check(streakChain.reset === 1, '日が空いていれば連続日数は 1 に戻る', String(streakChain.reset))
+
+// 日付が変われば今日のログは無視される (メニューが自動でリセットされる)
+check(
+  run(`(() => {
+    const stale = { ...freshState(), daily: { date: '2020-01-01', log: [{ drillKey: 'RFI_UTG', mode: 'boundary' }] } }
+    return dailyLog(stale).length === 0 && dailyTasks(stale).every((t) => t.done === 0)
+  })()`),
+  '昨日のログは今日の進捗に数えない (日付でリセット)',
+)
+
+// メニューは日付で決まる = 同じ日なら何度呼んでも同じ課題
+check(
+  run(`(() => {
+    const s = freshState()
+    return JSON.stringify(dailyTasks(s).map((t) => [t.id, t.focus])) ===
+           JSON.stringify(dailyTasks(s).map((t) => [t.id, t.focus]))
+  })()`),
+  'メニューは同じ日なら何度開いても同じ',
+)
+
+// 弱点が出ていればそれを拾う
+const dailyWeak = run(`(() => {
+  let s = freshState()
+  const spot = dailyTasks(s)[1].focus         // 今日のスポット (弱点タスクから除外される)
+  const target = DRILLS.find((d) => d.key !== spot && d.type === 'rfi')
+  const drill = DRILL_BY_KEY[target.key]
+  const correct = drill.answerFor('AA')
+  const wrong = drill.actions.map((a) => a.id).find((a) => a !== correct)
+  for (let i = 0; i < 8; i++) {
+    s = recordAnswer(s, { drillKey: target.key, hand: 'AA', chosenAction: wrong, correctAction: correct, isCorrect: false })
+  }
+  const weak = dailyTasks(s).find((t) => t.id === 'weak')
+  return { picked: weak.focus, expected: target.key, label: weak.label }
+})()`)
+check(
+  dailyWeak.picked === dailyWeak.expected,
+  '正解率が落ちているスポットが「弱点」タスクに選ばれる',
+  `${dailyWeak.picked} (期待 ${dailyWeak.expected})`,
+)
+check(dailyWeak.label.includes('弱点'), '本物の弱点なら「弱点」と表示する', dailyWeak.label)
+
 // ---- 解説で教えている構造が実データで成り立つ ----
 // (index.html の「3ベット側の覚え方」に書いた主張。データを変えたらここが落ちて文言の見直しに気づける)
 
@@ -718,6 +979,137 @@ check(
   '不正解時: なぜ と 覚え方 の両方に中身がある',
   `why=${uiFlow.ngBanner.coachWhy.slice(0, 30)}… tip=${uiFlow.ngBanner.coachTip.slice(0, 30)}…`,
 )
+
+// ---- UI: サイズの出題を実際に通す ----
+
+const sizingUi = run(`(() => {
+  selectMode('sizing')
+  const drill = DRILL_BY_KEY[current.drillKey]
+
+  const asked = {
+    isSizing: drill.type === 'sizing',
+    hand: current.hand,
+    cardsHidden: el.cards.hidden,
+    handText: el.hand.textContent,
+    combos: el.combos.textContent,
+    buttons: el.actions.children.map((b) => b.dataset.action),
+  }
+
+  const wrong = drill.actions.map((a) => a.id).find((a) => a !== drill.answer)
+  answer(wrong)
+
+  const verdict = {
+    chartHidden: el.chart.hidden,
+    banner: el.bannerText.textContent,
+    note: el.verdictNote.textContent,
+    coachHidden: el.coach.hidden,
+    coachWhy: el.coachWhy.textContent,
+    marks: el.actions.children.map((b) => [b.dataset.action, [...b.classList._set].filter((c) => c.startsWith('is-'))]),
+    correct: drill.answer,
+    chosen: wrong,
+  }
+
+  advance()
+  const nextIsSizing = DRILL_BY_KEY[current.drillKey].type === 'sizing'
+
+  // レンジのモードに戻すと、カードとレンジ表が戻る
+  selectMode('rfi')
+  const backToRange = {
+    cardsHidden: el.cards.hidden,
+    hand: current.hand,
+  }
+  const rangeDrill = DRILL_BY_KEY[current.drillKey]
+  answer(rangeDrill.answerFor(current.hand))
+  const rangeChartHidden = el.chart.hidden
+  advance()
+
+  return { asked, verdict, nextIsSizing, backToRange, rangeChartHidden }
+})()`)
+
+check(sizingUi.asked.isSizing, 'サイズモードに切り替えるとサイズの出題になる')
+check(sizingUi.asked.hand === null, 'サイズの出題にハンドが無い')
+check(sizingUi.asked.cardsHidden === true, 'サイズの出題ではカードを表示しない')
+check(
+  sizingUi.asked.combos.includes('手に依存しない'),
+  'サイズの出題は「額は手に依存しない」と明記する',
+  sizingUi.asked.combos,
+)
+check(
+  sizingUi.asked.buttons.length === 4 && sizingUi.asked.buttons.every((b) => b.endsWith('bb')),
+  'サイズの選択肢が bb 額の4択になっている',
+  sizingUi.asked.buttons.join(','),
+)
+check(sizingUi.verdict.chartHidden === true, 'サイズの判定ではレンジ表を出さない (ハンドの表なので意味がない)')
+check(
+  sizingUi.verdict.banner.includes(sizingUi.verdict.correct),
+  'サイズの不正解バナーが正しい額を出す',
+  sizingUi.verdict.banner,
+)
+check(
+  sizingUi.verdict.coachHidden === false && sizingUi.verdict.coachWhy.length > 0,
+  'サイズを間違えるとコーチが出る',
+  sizingUi.verdict.coachWhy.slice(0, 40),
+)
+const sizeCorrectMark = sizingUi.verdict.marks.find(([id]) => id === sizingUi.verdict.correct)
+const sizeWrongMark = sizingUi.verdict.marks.find(([id]) => id === sizingUi.verdict.chosen)
+check(
+  sizeCorrectMark && sizeCorrectMark[1].includes('is-correct') && sizeWrongMark && sizeWrongMark[1].includes('is-wrong'),
+  'サイズでも正解ボタンが緑・押した不正解が赤になる',
+  JSON.stringify(sizingUi.verdict.marks),
+)
+check(sizingUi.nextIsSizing, 'サイズモードでは次の問題もサイズ')
+check(sizingUi.backToRange.cardsHidden === false, 'レンジのモードに戻すとカードが復活する')
+check(sizingUi.backToRange.hand !== null, 'レンジのモードに戻すとハンドが配られる')
+check(sizingUi.rangeChartHidden === false, 'レンジのモードではレンジ表が戻る')
+
+// ---- UI: 毎日の特訓メニュー / 用語解説 ----
+
+check(run('el.dailyList.children.length') === 4, 'メニューが 4 行描かれる')
+check(
+  run(`el.dailyList.children.every((row) => row.children.length === 3)`),
+  'メニューの各行が マーク / 本体 / 進捗 の3つを持つ',
+)
+check(run('el.dailyDone.hidden') === true, '未完走ならメニュー完了の表示は出ない')
+
+// メニューの行をタップすると、そのモード / 狙い撃ちに切り替わって出題が始まる
+const dailyStart = run(`(() => {
+  const task = dailyTasks(state).find((t) => t.id === 'spot')
+  startDailyTask(task)
+  return { mode: state.mode, focus: state.focus, drawn: current.drillKey, want: task.focus }
+})()`)
+check(
+  dailyStart.focus === dailyStart.want && dailyStart.drawn === dailyStart.want,
+  'メニューの「今日のスポット」をタップするとそのスポットが出る',
+  `${dailyStart.drawn} (期待 ${dailyStart.want})`,
+)
+
+const sizingStart = run(`(() => {
+  const task = dailyTasks(state).find((t) => t.id === 'sizing')
+  startDailyTask(task)
+  return { mode: state.mode, isSizing: DRILL_BY_KEY[current.drillKey].type === 'sizing', hand: current.hand }
+})()`)
+check(
+  sizingStart.mode === 'sizing' && sizingStart.isSizing && sizingStart.hand === null,
+  'メニューの「サイズ」をタップするとサイズモードが始まる',
+  JSON.stringify(sizingStart),
+)
+
+check(run('el.glossaryBody.children.length') > 0, '用語解説が描画されている')
+check(run(`el.glossaryCount.textContent === String(GLOSSARY_TERM_COUNT)`), '用語数が見出しに出る')
+
+const glossaryFilter = run(`(() => {
+  renderGlossary('ドミネート')
+  const hit = el.glossaryBody.children.length
+  renderGlossary('ぽよよん')
+  const miss = el.glossaryBody.children.length
+  renderGlossary('')
+  return { hit, miss, all: el.glossaryBody.children.length }
+})()`)
+check(glossaryFilter.hit > 0 && glossaryFilter.hit < glossaryFilter.all, '用語検索で絞り込める', JSON.stringify(glossaryFilter))
+check(glossaryFilter.miss === 1, '当たらない検索は「ありません」の1行だけ', String(glossaryFilter.miss))
+
+// 後片付け: 以降のチェックに狙い撃ち / サイズモードを持ち越さない
+run(`commit({ ...state, focus: null, mode: 'rfi' }); advance()`)
 
 // 次の問題に進むと色付けがリセットされる
 const cleared = run(`(() => {

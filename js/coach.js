@@ -142,9 +142,45 @@ const vsRfiTip = (drill, hand) => {
   return `${hand} は ${drill.raiser} のレイズに対して: ${line}`
 }
 
+// ---- サイズ ----
+
+const sizingWhy = (drill) => {
+  if (drill.type === 'sizing' && !drill.raiser) {
+    if (drill.hero === 'SB') {
+      return `SB だけ ${drill.answer} と大きい。BB はすでに 1bb 出しているので、他と同じ 2.5bb だと安すぎて必ず見に来られる。少し高く払わせて、降りるか高く払うかを選ばせる。`
+    }
+    return `オープンは席にかかわらず ${drill.answer}。小さすぎると誰でも見に来られ、大きすぎると降ろしたい相手まで降りて割に合わない。この額が分岐点。`
+  }
+
+  const inPosition = isHeroInPosition(drill.hero, drill.raiser)
+  const multiple = inPosition ? '3x' : '4x'
+
+  if (inPosition) {
+    return `${drill.hero} は ${drill.raiser} より後に動ける (IP) ので、オープン ${raiseSizeFor(drill.raiser)} の ${multiple} = ${drill.answer}。位置がある側はフロップ以降で有利に立ち回れるから、安くして弱い手に付いてきてもらったほうが儲かる。`
+  }
+
+  const blindNote =
+    drill.hero === 'SB'
+      ? ' しかも後ろに BB が残っているので、安いと2人相手に最悪の位置で戦うことになる。'
+      : ''
+
+  return `${drill.hero} は ${drill.raiser} より先に動く (OOP) ので、オープン ${raiseSizeFor(drill.raiser)} の ${multiple} = ${drill.answer}。位置が悪いとフロップ以降でエクイティを実現しづらいぶん、降ろす確率を上げ、続けるなら高く払わせる。${blindNote}`
+}
+
+const sizingTip = (drill) => {
+  if (drill.type === 'sizing' && !drill.raiser) {
+    return 'オープンは 2.5bb 固定。例外は SB の 3bb だけ (BB を安く見に来させないため)。'
+  }
+  return `3ベットは「IP 3x / OOP 4x」の2本だけ。オープンが ${raiseSizeFor(drill.raiser)} なら IP ${THREEBET_SIZE.ip} · OOP ${THREEBET_SIZE.oop}。額は手の強さで変えない — 変えると読まれる。`
+}
+
 // ---- エントリポイント ----
 
 const coachFor = (drill, hand) => {
+  if (drill.type === 'sizing') {
+    return { why: sizingWhy(drill), tip: sizingTip(drill) }
+  }
+
   if (drill.type === 'rfi') {
     return { why: rfiWhy(drill, hand), tip: rfiTip(drill, hand) }
   }

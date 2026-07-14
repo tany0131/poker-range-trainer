@@ -12,6 +12,21 @@
       <h1>プリフロップ レンジトレーナー</h1>
       <p class="sub">6-max / 100bb / キャッシュゲーム。テーブルの状況を見て、フォールド・コール・レイズを選ぶ。</p>
 
+      <details class="card daily" id="daily" open>
+        <summary>
+          今日の特訓
+          <span class="daily-streak" id="daily-streak"></span>
+        </summary>
+        <div class="daily-body">
+          <p class="daily-lead">
+            タップするとそのメニューが始まります。進捗は<strong>普通に練習していれば勝手に埋まる</strong>ので、
+            必ずここから始める必要はありません。日付が変わるとリセット。
+          </p>
+          <div class="daily-list" id="daily-list"></div>
+          <p class="daily-done" id="daily-done" hidden>今日のメニュー完了。</p>
+        </div>
+      </details>
+
       <div class="modes" id="modes"></div>
       <p class="mode-hint" id="mode-hint"></p>
 
@@ -63,7 +78,7 @@
 
           <div class="verdict-note" id="verdict-note"></div>
 
-          <details class="chart" open>
+          <details class="chart" id="chart" open>
             <summary>このスポットの全体レンジ</summary>
             <div class="grid" id="grid" aria-hidden="true"></div>
             <div class="legend" id="legend"></div>
@@ -251,6 +266,41 @@
             自分の手の強さ単体ではなく、相手のオープンレンジとの比較で決まるからです。
           </p>
 
+          <h3>ベットサイズの覚え方 — 手ではなく位置で決まる</h3>
+          <p>
+            サイズはレンジと違って<strong>「どの手か」に依存しません</strong>。AA でも A5s でも同じ額で打つ。
+            強い手のときだけ大きく打っていたら、額を見ただけで手の強さが読まれてしまうからです。
+            だから覚えるのは<strong>スポットごとに1つの数字</strong>だけ。サイズモードでカードを配らないのはこの理由です。
+          </p>
+          <p>
+            <strong>オープンは 2.5bb。例外は SB の 3bb だけ。</strong>
+            SB が大きいのは、BB がすでに 1bb 出していて安く見に来られてしまうから。少し高く払わせます。
+          </p>
+          <p>
+            <strong>3ベットはオープン額の「IP 3x / OOP 4x」。</strong>
+          </p>
+          <table>
+            <thead>
+              <tr><th>状況</th><th>倍率</th><th>2.5bb オープンなら</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>IP (HJ / CO / BTN)</td><td>3x</td><td>7.5bb</td></tr>
+              <tr><td>OOP (SB / BB)</td><td>4x</td><td>10bb</td></tr>
+            </tbody>
+          </table>
+          <p>
+            <strong>なぜ OOP ほど大きいのか。</strong>
+            位置が悪いとフロップ以降で毎ラウンド先に動かされ、勝率どおりにポットを取れません
+            (= エクイティを実現しづらい)。だから降ろす確率を上げ、それでも付いてくる相手には高く払わせる。
+            逆に IP は安くして、弱い手に付いてきてもらったほうが儲かります。
+            SB が特に大きいのは、後ろに BB がまだ残っているので、安いと2人相手に最悪の位置で戦うことになるからです。
+          </p>
+          <p>
+            間にコーラーがいたら<strong>1人につき +1bb</strong> 足す、が定番の調整。
+            4ベットは 3ベット額の <strong>IP 2.2x / OOP 2.5x</strong> 前後ですが、
+            100bb だとその時点でスタックの1/4が入るので、実質「最後までいく手」しか作れません。
+          </p>
+
           <h3>境界特訓モードとは</h3>
           <p>
             169 ハンドのうち、<strong>大半は考える必要がありません</strong>。AA はどこからでもレイズ、72o はどこからでもフォールド。
@@ -279,6 +329,20 @@
             ソルバーが<strong>混合戦略を取るハンドは、頻度の高い方の action に丸めて</strong>あります (1ハンド1答にするため)。
             そのぶん境界の細部は本来より少し堅く、そこは「流派の差」の範囲です。
           </p>
+        </div>
+      </details>
+
+      <details class="card glossary">
+        <summary>用語解説 — <span id="glossary-count"></span> 語</summary>
+        <div class="glossary-wrap">
+          <input
+            class="glossary-search"
+            id="glossary-search"
+            type="search"
+            placeholder="用語を検索 (説明文からも引けます)"
+            aria-label="用語を検索"
+          />
+          <div class="glossary-body" id="glossary-body"></div>
         </div>
       </details>
 
@@ -313,6 +377,23 @@
           <tbody id="stats-vs"></tbody>
         </table>
 
+        <h3 class="stats-head">サイズ (いくら賭けるか)</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>状況</th>
+              <th>出題</th>
+              <th>基準</th>
+              <th>正解率</th>
+            </tr>
+          </thead>
+          <tbody id="stats-sizing"></tbody>
+        </table>
+        <p class="stats-note">
+          サイズの<strong>基準は 25%</strong> = 4択を当てずっぽうで押したときの正解率。覚えるのは
+          「オープン 2.5bb (SB だけ 3bb)」と「3ベットは IP 3x / OOP 4x」の2本だけなので、ここは 100% を狙えます。
+        </p>
+
         <p class="stats-note">
           <strong>行をタップすると、その状況だけを狙い撃ちで練習</strong>できます。弱点を潰すときに使う。
         </p>
@@ -341,6 +422,8 @@
     <script src="js/coach.js"></script>
     <script src="js/cards.js"></script>
     <script src="js/stats.js"></script>
+    <script src="js/daily.js"></script>
+    <script src="js/glossary.js"></script>
     <script src="js/quiz.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/ui.js"></script>

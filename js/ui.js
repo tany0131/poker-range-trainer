@@ -29,6 +29,13 @@ const ACTION_LABELS = {
   fold: 'フォールド',
 }
 
+// サイズのドリルは action の id がそのまま額 ('7.5bb') なので、固定表からは引けない。
+// ドリル自身が持つ action の label を先に見る。
+const actionLabelOf = (drill, actionId) => {
+  const action = drill.actions.find((a) => a.id === actionId)
+  return action ? action.label : ACTION_LABELS[actionId]
+}
+
 const el = {
   modes: document.getElementById('modes'),
   modeHint: document.getElementById('mode-hint'),
@@ -50,6 +57,15 @@ const el = {
   reset: document.getElementById('btn-reset'),
   sound: document.getElementById('btn-sound'),
   verdict: document.getElementById('verdict'),
+  chart: document.getElementById('chart'),
+  daily: document.getElementById('daily'),
+  dailyList: document.getElementById('daily-list'),
+  dailyStreak: document.getElementById('daily-streak'),
+  dailyDone: document.getElementById('daily-done'),
+  statsSizing: document.getElementById('stats-sizing'),
+  glossarySearch: document.getElementById('glossary-search'),
+  glossaryBody: document.getElementById('glossary-body'),
+  glossaryCount: document.getElementById('glossary-count'),
   banner: document.getElementById('banner'),
   bannerMark: document.getElementById('banner-mark'),
   bannerText: document.getElementById('banner-text'),
@@ -235,6 +251,35 @@ const clearActionMarks = () => {
   }
 }
 
+// サイズの出題はカードを配らない。額はハンドに依存しないので、
+// カードを見せると「手によって額が変わる」という誤った印象を与える。
+const renderHandArea = (drill, hand) => {
+  if (drill.type === 'sizing') {
+    el.cards.innerHTML = ''
+    el.cards.hidden = true
+    el.hand.innerHTML = ''
+    el.hand.textContent = drill.raiser ? '3ベットする' : 'オープンレイズする'
+    el.combos.textContent = 'いくらにする？ (額は手に依存しない)'
+    return
+  }
+
+  el.cards.hidden = false
+  renderCards(hand)
+
+  el.hand.innerHTML = ''
+  const base = document.createElement('span')
+  base.textContent = isPair(hand) ? hand : hand.slice(0, 2)
+  el.hand.appendChild(base)
+  if (!isPair(hand)) {
+    const suffix = document.createElement('span')
+    suffix.className = 'suffix'
+    suffix.textContent = hand[2]
+    el.hand.appendChild(suffix)
+  }
+
+  el.combos.textContent = describeHand(hand)
+}
+
 const renderQuestion = (state, question, onAnswer) => {
   const drill = DRILL_BY_KEY[question.drillKey]
 
@@ -242,20 +287,7 @@ const renderQuestion = (state, question, onAnswer) => {
   el.spotTitle.textContent = drill.title
   el.spotNote.textContent = question.isReview ? `${drill.note} — 復習` : drill.note
 
-  renderCards(question.hand)
-
-  el.hand.innerHTML = ''
-  const base = document.createElement('span')
-  base.textContent = isPair(question.hand) ? question.hand : question.hand.slice(0, 2)
-  el.hand.appendChild(base)
-  if (!isPair(question.hand)) {
-    const suffix = document.createElement('span')
-    suffix.className = 'suffix'
-    suffix.textContent = question.hand[2]
-    el.hand.appendChild(suffix)
-  }
-
-  el.combos.textContent = describeHand(question.hand)
+  renderHandArea(drill, question.hand)
 
   renderActions(drill, onAnswer)
   clearActionMarks()
@@ -295,23 +327,38 @@ const renderLegendInto = (target, drill) => {
 const renderGrid = (drill, currentHand) => renderGridInto(el.grid, drill, currentHand)
 const renderLegend = (drill) => renderLegendInto(el.legend, drill)
 
-const renderVerdict = (question, grade, chosenAction) => {
-  const drill = DRILL_BY_KEY[question.drillKey]
-  const correctLabel = ACTION_LABELS[grade.correctAction]
-  const chosenLabel = ACTION_LABELS[chosenAction]
+const verdictHeadline = (drill, question, grade, chosenAction) => {
+  const correctLabel = actionLabelOf(drill, grade.correctAction)
+  const chosenLabel = actionLabelOf(drill, chosenAction)
 
-  el.banner.className = `banner ${grade.isCorrect ? 'ok' : 'ng'}`
-  el.bannerMark.textContent = grade.isCorrect ? '正解' : '不正解'
-  el.bannerText.textContent = grade.isCorrect
-    ? `${question.hand} は ${correctLabel}`
-    : `${chosenLabel} ではなく ${correctLabel}`
+  if (grade.isCorrect) {
+    return drill.type === 'sizing' ? `${drill.label} は ${correctLabel}` : `${question.hand} は ${correctLabel}`
+  }
+  return `${chosenLabel} ではなく ${correctLabel}`
+}
+
+const verdictNoteText = (drill, question, grade) => {
+  const correctLabel = actionLabelOf(drill, grade.correctAction)
+
+  if (drill.type === 'sizing') {
+    return `${drill.title} → ${correctLabel}。額は手の強さで変えない (変えると読まれる)。`
+  }
 
   const share =
     grade.correctAction === 'fold'
       ? `このスポットで降りる手は全体の ${drill.foldBaseline.toFixed(0)}%。`
       : `このスポットで ${correctLabel} する手は全体の ${pctOf(drill.sets[grade.correctAction]).toFixed(0)}%。`
 
-  el.verdictNote.textContent = `${drill.label} で ${question.hand} は ${correctLabel}。${share}`
+  return `${drill.label} で ${question.hand} は ${correctLabel}。${share}`
+}
+
+const renderVerdict = (question, grade, chosenAction) => {
+  const drill = DRILL_BY_KEY[question.drillKey]
+
+  el.banner.className = `banner ${grade.isCorrect ? 'ok' : 'ng'}`
+  el.bannerMark.textContent = grade.isCorrect ? '正解' : '不正解'
+  el.bannerText.textContent = verdictHeadline(drill, question, grade, chosenAction)
+  el.verdictNote.textContent = verdictNoteText(drill, question, grade)
 
   // 間違えた時だけ、バナー直下に「なぜ」と「覚え方」を出す。正解時は次の問題への流れを止めない。
   if (grade.isCorrect) {
@@ -324,8 +371,13 @@ const renderVerdict = (question, grade, chosenAction) => {
   }
 
   markActions(chosenAction, grade.correctAction)
-  renderGrid(drill, question.hand)
-  renderLegend(drill)
+
+  // レンジ表はハンドの表なので、サイズの出題では意味がない。
+  el.chart.hidden = drill.type === 'sizing'
+  if (drill.type !== 'sizing') {
+    renderGrid(drill, question.hand)
+    renderLegend(drill)
+  }
 
   setActionsDisabled(true)
   el.verdict.hidden = false
@@ -494,6 +546,98 @@ const renderGrowth = (stepIndex, onSelect) => {
   el.growthNote.textContent = describeStep(step)
 }
 
+// ---- 毎日の特訓メニュー ----
+
+const renderDailyTask = (task, onStart) => {
+  const row = document.createElement('button')
+  row.className = `daily-task${task.isComplete ? ' complete' : ''}`
+  row.dataset.task = task.id
+  row.addEventListener('click', () => onStart(task))
+
+  const mark = document.createElement('span')
+  mark.className = 'daily-mark'
+  mark.textContent = task.isComplete ? '✓' : '▶'
+  row.appendChild(mark)
+
+  const body = document.createElement('span')
+  body.className = 'daily-main'
+
+  const label = document.createElement('span')
+  label.className = 'daily-label'
+  label.textContent = task.label
+  body.appendChild(label)
+
+  const hint = document.createElement('span')
+  hint.className = 'daily-hint'
+  hint.textContent = task.hint
+  body.appendChild(hint)
+
+  const bar = document.createElement('span')
+  bar.className = 'daily-bar'
+  const fill = document.createElement('span')
+  fill.className = 'daily-fill'
+  fill.style.width = `${(task.done / task.target) * 100}%`
+  bar.appendChild(fill)
+  body.appendChild(bar)
+
+  row.appendChild(body)
+
+  const count = document.createElement('span')
+  count.className = 'daily-count'
+  count.textContent = `${task.done}/${task.target}`
+  row.appendChild(count)
+
+  return row
+}
+
+const renderDaily = (state, onStart) => {
+  const tasks = dailyTasks(state)
+
+  el.dailyList.innerHTML = ''
+  for (const task of tasks) el.dailyList.appendChild(renderDailyTask(task, onStart))
+
+  const days = state.dailyStreak.days
+  el.dailyStreak.textContent = days > 0 ? `${days} 日連続` : ''
+
+  const complete = tasks.every((task) => task.isComplete)
+  el.dailyDone.hidden = !complete
+  el.daily.classList.toggle('all-done', complete)
+}
+
+// ---- 用語解説 ----
+
+const renderGlossary = (query = '') => {
+  const groups = searchGlossary(query)
+  el.glossaryCount.textContent = String(GLOSSARY_TERM_COUNT)
+  el.glossaryBody.innerHTML = ''
+
+  if (groups.length === 0) {
+    const empty = document.createElement('p')
+    empty.className = 'glossary-empty'
+    empty.textContent = `「${query}」に当たる用語はありません。`
+    el.glossaryBody.appendChild(empty)
+    return
+  }
+
+  for (const group of groups) {
+    const heading = document.createElement('h3')
+    heading.textContent = group.section
+    el.glossaryBody.appendChild(heading)
+
+    const list = document.createElement('dl')
+    list.className = 'glossary-list'
+    for (const entry of group.terms) {
+      const term = document.createElement('dt')
+      term.textContent = entry.term
+      const def = document.createElement('dd')
+      def.textContent = entry.def
+      list.appendChild(term)
+      list.appendChild(def)
+    }
+    el.glossaryBody.appendChild(list)
+  }
+}
+
 // ---- 定石ビューア ----
 
 // 出題を待たずにチャートを眺めるためのカード。数字は sets から都度計算する (正本とずらさない)。
@@ -557,6 +701,7 @@ const renderHelp = () => {
 const renderDashboard = (state, onFocus) => {
   renderDrillTable(el.statsRfi, state, RFI_DRILLS, onFocus)
   renderDrillTable(el.statsVs, state, VS_RFI_DRILLS, onFocus)
+  renderDrillTable(el.statsSizing, state, SIZING_DRILLS, onFocus)
   renderFocus(state)
   renderSpark(state)
   renderLeaks(state)
