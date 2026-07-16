@@ -17,6 +17,9 @@ node tools/verify-bundle.mjs # 畳んだ後のバンドルを実行して再検�
 
 `verify-bundle.mjs` を省略しないこと。ソースが通ってもインライン化で順序が壊れる事故は起きる。
 
+`js/equity.js` (対ランダム勝率) は `node tools/gen-equity.mjs` の生成物 — 手で編集しない。
+seed 固定モンテカルロなので再生成しても同じ値。verify.mjs が既知の解析値 (AA=85.2% 等) と照合する。
+
 ## 触る前に知っておくこと
 
 ### レンジの正本は `js/spots.js`

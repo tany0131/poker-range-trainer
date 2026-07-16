@@ -18,7 +18,7 @@ const advance = () => {
   current = question
   answered = false
   lastChoice = null
-  renderQuestion(state, current, answer)
+  renderQuestion(state, current, answer, () => openSheet('positions'))
 }
 
 function answer(chosenAction) {
@@ -135,11 +135,60 @@ document.addEventListener('keydown', (event) => {
     return
   }
 
+  if (key === 'escape' && !el.sheet.hidden) {
+    event.preventDefault()
+    closeSheet()
+    return
+  }
+
   if (answered && (key === ' ' || key === 'enter')) {
     event.preventDefault()
     advance()
   }
 })
+
+// ---- 早見表 (右下のボタン / 席タップから開く) ----
+// 開閉・タブ・検索語はすべて一時的な状態なので保存しない。
+
+let sheetPane = 'positions'
+let sheetQuery = ''
+
+const drawSheet = () => renderSheet(sheetPane, sheetQuery, selectSheetPane, setSheetQuery)
+
+function openSheet(pane) {
+  if (pane) sheetPane = pane
+  el.sheet.hidden = false
+  drawSheet()
+}
+
+function closeSheet() {
+  el.sheet.hidden = true
+}
+
+function selectSheetPane(paneId) {
+  sheetPane = paneId
+  drawSheet()
+}
+
+function setSheetQuery(query) {
+  sheetQuery = query
+  drawSheet()
+}
+
+el.sheetFab.addEventListener('click', () => openSheet())
+el.sheetClose.addEventListener('click', closeSheet)
+// パネルの外 (背景) をタップしても閉じる
+el.sheet.addEventListener('click', (event) => {
+  if (event.target === el.sheet) closeSheet()
+})
+
+// ---- 勝率表 ----
+
+let equityHand = null
+function pickEquityHand(hand) {
+  equityHand = equityHand === hand ? null : hand
+  renderEquity(equityHand, pickEquityHand)
+}
 
 // 「レンジの育ち方」の表示位置。学習中の一時的な状態なので保存しない。
 let growthStep = 0
@@ -175,6 +224,9 @@ el.intro.open = state.history.length === 0
 renderHelp()
 renderGlossary()
 renderFaq()
+renderMistakes()
+renderEquity(equityHand, pickEquityHand)
+closeSheet()
 renderGrowth(growthStep, selectGrowthStep)
 drawReference()
 renderModes(state, selectMode)

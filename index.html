@@ -229,6 +229,58 @@
         </div>
       </details>
 
+      <details class="card equity">
+        <summary>勝率表 — 期待値のきほん</summary>
+        <div class="equity-wrap">
+          <p class="reference-lead">
+            各ハンドの<strong>対ランダム勝率</strong> (ランダムな相手 1 人と最後まで行ったときに勝つ割合)。
+            このアプリが実際にシミュレーションして計算した数字です。マスをタップすると詳細が出ます。
+          </p>
+
+          <div class="grid" id="equity-grid" aria-hidden="true"></div>
+
+          <div class="legend">
+            <span><span class="swatch eq-4"></span>64%+</span>
+            <span><span class="swatch eq-3"></span>57%+</span>
+            <span><span class="swatch eq-2"></span>50%+</span>
+            <span><span class="swatch eq-1"></span>42%+</span>
+            <span><span class="swatch eq-0"></span>それ未満</span>
+          </div>
+
+          <p class="ref-prompt" id="equity-prompt">マスをタップすると、その手の勝率と読み方が出ます。</p>
+          <p class="equity-answer" id="equity-answer" hidden></p>
+
+          <h3>勝率 ≠ 期待値 — ここが分かると一段上がる</h3>
+          <p>
+            期待値 = <strong>勝率 × 勝ったとき取れる額 − 負率 × 負けたとき払う額</strong>。
+            勝率はその一部でしかありません。レンジ表と見比べると、食い違う場所があります:
+          </p>
+          <table>
+            <thead>
+              <tr><th>手</th><th>対ランダム勝率</th><th>RFI の答え</th><th>なぜ</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>K7o</td><td>55.0%</td><td>全席フォールド</td>
+                <td>ペアができても K のキッカー負けで大きく払う。勝率を実現できない</td>
+              </tr>
+              <tr>
+                <td>76s</td><td>45.2%</td><td>UTG から開ける</td>
+                <td>ストレートやフラッシュに化けて、勝つときに大きく取れる</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            <strong>勝率が上の K7o が捨てられ、勝率が下の 76s が開けられる。</strong>
+            これが「期待値は勝率だけでは決まらない」の実例です。効くのは
+            (1) <strong>ドミネート</strong> — 勝ったとき小さく負けたとき大きい形は勝率の数字より弱い、
+            (2) <strong>化けやすさ</strong> — そろい・つながりは勝つときに大きく取れるので勝率の数字より強い、
+            (3) <strong>位置</strong> — 後に動けるほど勝率どおりに取りやすい、の 3 つ。
+            レンジ表はこの全部を織り込み済みの答えなので、<strong>迷ったらレンジ表に従えば期待値の計算は要りません</strong>。
+          </p>
+        </div>
+      </details>
+
       <details class="card faq">
         <summary>よくある質問 — <span id="faq-count"></span> 件</summary>
         <div class="faq-wrap">
@@ -244,6 +296,17 @@
             aria-label="質問を検索"
           />
           <div class="faq-body" id="faq-body"></div>
+        </div>
+      </details>
+
+      <details class="card mistakes">
+        <summary>よくあるミスとコツ — <span id="mistakes-count"></span> 件</summary>
+        <div class="mistakes-wrap">
+          <p class="faq-lead">
+            初心者がほぼ全員通る失敗と、その直し方。
+            成績カードの<strong>弱点分析と見比べる</strong>と、自分がどれをやっているか分かります。
+          </p>
+          <div class="faq-body" id="mistakes-body"></div>
         </div>
       </details>
 
@@ -612,6 +675,18 @@
       </section>
     </main>
 
+    <button class="sheet-fab" id="sheet-fab" aria-label="早見表を開く">♠ 早見表</button>
+
+    <div class="sheet" id="sheet" hidden>
+      <div class="sheet-panel">
+        <div class="sheet-head">
+          <div class="sheet-tabs ref-btns" id="sheet-tabs"></div>
+          <button class="sheet-close" id="sheet-close">閉じる</button>
+        </div>
+        <div class="sheet-body" id="sheet-body"></div>
+      </div>
+    </div>
+
     <script src="js/ranges.js"></script>
     <script src="js/spots.js"></script>
     <script src="js/coach.js"></script>
@@ -621,6 +696,8 @@
     <script src="js/daily.js"></script>
     <script src="js/glossary.js"></script>
     <script src="js/faq.js"></script>
+    <script src="js/tips.js"></script>
+    <script src="js/equity.js"></script>
     <script src="js/quiz.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/ui.js"></script>

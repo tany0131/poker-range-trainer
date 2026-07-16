@@ -1084,6 +1084,151 @@ tbody tr:last-child td {
   margin: 0;
 }
 
+/* ---- 勝率表 ---- */
+
+.equity-wrap {
+  padding: 0 20px 20px;
+}
+
+.equity-wrap h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 18px 0 6px;
+}
+
+/* 勝率のヒートマップ。強い = 緑が濃い、五分 = 青、弱い = 沈む */
+.cell.eq-4 { background: #2f9e63; color: #06120b; }
+.cell.eq-3 { background: #27714d; color: #dbe7df; }
+.cell.eq-2 { background: #2c4a66; color: #cfdbe8; }
+.cell.eq-1 { background: #333b48; color: #9aa5b3; }
+.cell.eq-0 { background: #23272f; color: #5f6976; }
+
+.swatch.eq-4 { background: #2f9e63; }
+.swatch.eq-3 { background: #27714d; }
+.swatch.eq-2 { background: #2c4a66; }
+.swatch.eq-1 { background: #333b48; }
+.swatch.eq-0 { background: #23272f; }
+
+.equity-answer {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: var(--panel-2);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.equity-answer[hidden] {
+  display: none;
+}
+
+/* ---- よくあるミス ---- */
+
+.mistakes-wrap {
+  padding: 0 20px 20px;
+}
+
+.mistake-fix {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.mistake-fix strong,
+.faq-answer strong {
+  color: var(--accent);
+}
+
+/* ---- 早見表 ---- */
+
+.sheet-fab {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 40;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: #241a05;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet[hidden] {
+  display: none;
+}
+
+.sheet-panel {
+  width: 100%;
+  max-width: 720px;
+  max-height: 82vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
+  padding: 14px 16px 28px;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sheet-tabs {
+  flex: 1;
+}
+
+.sheet-close {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sheet-h {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 14px 0 6px;
+}
+
+.sheet-h:first-child {
+  margin-top: 0;
+}
+
+.sheet-note {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.7;
+  margin: 6px 0;
+}
+
+.sheet-body table {
+  margin: 4px 0;
+}
+
+/* 席タップで早見表が開くことを示す */
+.seat-tappable {
+  cursor: pointer;
+}
+
 /* ---- よくある質問 ---- */
 
 .faq-wrap {
@@ -1268,7 +1413,9 @@ details.reference,
 details.daily,
 details.glossary,
 details.faq,
-details.intro {
+details.intro,
+details.mistakes,
+details.equity {
   padding: 0;
 }
 
@@ -1278,7 +1425,9 @@ details.reference > summary,
 details.daily > summary,
 details.glossary > summary,
 details.faq > summary,
-details.intro > summary {
+details.intro > summary,
+details.mistakes > summary,
+details.equity > summary {
   list-style: none;
   cursor: pointer;
   padding: 16px 20px;
@@ -1298,7 +1447,9 @@ details.reference > summary::-webkit-details-marker,
 details.daily > summary::-webkit-details-marker,
 details.glossary > summary::-webkit-details-marker,
 details.faq > summary::-webkit-details-marker,
-details.intro > summary::-webkit-details-marker {
+details.intro > summary::-webkit-details-marker,
+details.mistakes > summary::-webkit-details-marker,
+details.equity > summary::-webkit-details-marker {
   display: none;
 }
 
@@ -1308,7 +1459,9 @@ details.reference > summary::after,
 details.daily > summary::after,
 details.glossary > summary::after,
 details.faq > summary::after,
-details.intro > summary::after {
+details.intro > summary::after,
+details.mistakes > summary::after,
+details.equity > summary::after {
   content: '開く';
   font-size: 11px;
   font-weight: 400;
@@ -1322,7 +1475,9 @@ details.reference[open] > summary::after,
 details.daily[open] > summary::after,
 details.glossary[open] > summary::after,
 details.faq[open] > summary::after,
-details.intro[open] > summary::after {
+details.intro[open] > summary::after,
+details.mistakes[open] > summary::after,
+details.equity[open] > summary::after {
   content: '閉じる';
 }
 
@@ -1332,7 +1487,9 @@ details.reference > summary:hover,
 details.daily > summary:hover,
 details.glossary > summary:hover,
 details.faq > summary:hover,
-details.intro > summary:hover {
+details.intro > summary:hover,
+details.mistakes > summary:hover,
+details.equity > summary:hover {
   color: var(--text);
 }
 
@@ -1536,7 +1693,9 @@ button {
   .daily-body,
   .glossary-wrap,
   .faq-wrap,
-  .intro-body {
+  .intro-body,
+  .mistakes-wrap,
+  .equity-wrap {
     padding: 0 14px 16px;
   }
 
@@ -1546,7 +1705,9 @@ button {
   details.daily > summary,
   details.glossary > summary,
   details.faq > summary,
-  details.intro > summary {
+  details.intro > summary,
+  details.mistakes > summary,
+  details.equity > summary {
     padding: 14px;
   }
 

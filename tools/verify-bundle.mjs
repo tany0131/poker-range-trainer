@@ -121,6 +121,11 @@ for (const file of ['dist/trainer.html', 'dist/artifact.html']) {
     `${file}: やさしい版とくわしい版が両方入っている`,
   )
   check(run(`coachFor(DRILL_BY_KEY['CO_BTN'], 'AJo', true).why.includes('キッカー負け')`), `${file}: やさしい版が動く`)
+  check(run('MISTAKES.length') >= 10, `${file}: よくあるミスが入っている`, `${run('MISTAKES.length')} 件`)
+  check(run('Object.keys(EQUITY_VS_RANDOM).length') === 169, `${file}: 勝率表が 169 ハンドぶん入っている`)
+  check(Math.abs(run(`EQUITY_VS_RANDOM['AA']`) - 85.2) < 0.7, `${file}: 勝率のアンカー (AA) が正しい`)
+  check(run(`(() => { openSheet('size'); const open = !el.sheet.hidden && el.sheetTabs.children.length === 5; closeSheet(); return open })()`), `${file}: 早見表が開く`)
+  check(run('el.equityGrid.children.length') === 169, `${file}: 勝率グリッドが描画されている`)
   check(run('el.dailyList.children.length') === 4, `${file}: メニューが描画されている`)
   check(run('el.glossaryBody.children.length') > 0, `${file}: 用語解説が描画されている`)
 }

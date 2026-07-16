@@ -105,6 +105,8 @@ const SCRIPTS = [
   'js/daily.js',
   'js/glossary.js',
   'js/faq.js',
+  'js/tips.js',
+  'js/equity.js',
   'js/quiz.js',
   'js/audio.js',
   'js/ui.js',
@@ -784,6 +786,96 @@ const sizeCoachOop = run(`coachFor(DRILL_BY_KEY['SIZE_UTG_BB'], null).why`)
 check(sizeCoachOop.includes('OOP') && sizeCoachOop.includes('4x'), 'コーチ サイズ: OOP は 4x と説明する', sizeCoachOop)
 const sizeCoachIp = run(`coachFor(DRILL_BY_KEY['SIZE_CO_BTN'], null).why`)
 check(sizeCoachIp.includes('IP') && sizeCoachIp.includes('3x'), 'コーチ サイズ: IP は 3x と説明する', sizeCoachIp)
+
+// ---- 勝率表 (対ランダム勝率) ----
+//
+// tools/gen-equity.mjs が生成した静的データの検算。
+// アンカー = 解析的に厳密値が知られているハンド。モンテカルロ 12 万回の誤差は ±0.4pt 程度なので
+// 0.7pt ずれていたら生成コードのバグを疑う。
+
+const EQUITY_ANCHORS = [
+  ['AA', 85.2], ['KK', 82.4], ['QQ', 79.9], ['22', 50.3],
+  ['AKs', 67.0], ['AKo', 65.3], ['72o', 34.6], ['32o', 32.3],
+]
+for (const [hand, expected] of EQUITY_ANCHORS) {
+  const got = run(`EQUITY_VS_RANDOM['${hand}']`)
+  check(Math.abs(got - expected) < 0.7, `勝率 ${hand} = ${got}%`, `(既知値 ${expected}%)`)
+}
+
+check(
+  run(`UNIQUE_HANDS.every((h) => typeof EQUITY_VS_RANDOM[h] === 'number' && EQUITY_VS_RANDOM[h] > 25 && EQUITY_VS_RANDOM[h] < 90)`),
+  '勝率表に 169 ハンド全部が妥当な範囲で入っている',
+)
+check(
+  run(`Object.keys(EQUITY_VS_RANDOM).length`) === 169,
+  '勝率表に余計なキーが無い',
+  String(run(`Object.keys(EQUITY_VS_RANDOM).length`)),
+)
+check(
+  run(`UNIQUE_HANDS.every((h) => h === 'AA' || EQUITY_VS_RANDOM[h] < EQUITY_VS_RANDOM['AA'])`),
+  'AA が最強',
+)
+
+// 不変条件: 同じ2ランクなら スーテッド > オフスーツ (フラッシュの分だけ必ず上)
+const suitedWorse = run(`UNIQUE_HANDS
+  .filter((h) => h.endsWith('s'))
+  .filter((h) => EQUITY_VS_RANDOM[h] <= EQUITY_VS_RANDOM[h.slice(0, 2) + 'o'])`)
+check(suitedWorse.length === 0, '勝率: 同じランクではスーテッドが必ず上', suitedWorse.join(','))
+
+// 不変条件: ペアは高いほど強い
+const pairOrder = run(`(() => {
+  const pairs = RANKS.map((r) => r + r)
+  return pairs.every((p, i) => i === 0 || EQUITY_VS_RANDOM[p] < EQUITY_VS_RANDOM[pairs[i - 1]])
+})()`)
+check(pairOrder, '勝率: ペアは高いほど強い')
+
+// 勝率カードで言い切っている実例 (K7o は勝率が上なのに捨てられ、76s は下なのに開ける)
+check(
+  run(`EQUITY_VS_RANDOM['K7o'] > EQUITY_VS_RANDOM['76s']`),
+  '実例: K7o の勝率 > 76s の勝率',
+  `${run(`EQUITY_VS_RANDOM['K7o']`)}% vs ${run(`EQUITY_VS_RANDOM['76s']`)}%`,
+)
+check(
+  run(`RFI_DRILLS.every((d) => !d.sets.raise.has('K7o')) && DRILL_BY_KEY['RFI_UTG'].sets.raise.has('76s')`),
+  '実例: K7o は全席フォールドで 76s は UTG から開ける',
+)
+
+// index.html に書いた数字が生成データと一致している (ずれたら書き直しに気づける)
+const htmlSource = readFileSync(join(ROOT, 'index.html'), 'utf8')
+check(
+  htmlSource.includes(`<td>K7o</td><td>${run(`EQUITY_VS_RANDOM['K7o']`).toFixed(1)}%</td>`),
+  '解説の K7o の勝率が生成データと一致',
+)
+check(
+  htmlSource.includes(`<td>76s</td><td>${run(`EQUITY_VS_RANDOM['76s']`).toFixed(1)}%</td>`),
+  '解説の 76s の勝率が生成データと一致',
+)
+
+// ---- よくあるミスと合言葉 ----
+
+check(run('MISTAKES.length') >= 10, 'よくあるミスが十分な数ある', `${run('MISTAKES.length')} 件`)
+check(
+  run(`MISTAKES.every((m) => m.title && m.why && m.fix && m.why.length > 40 && m.fix.length > 20)`),
+  '全ミスに なぜまずい / どうする が入っている',
+)
+check(run('MANTRAS.length') >= 6, '合言葉が十分な数ある', `${run('MANTRAS.length')} 件`)
+
+// 合言葉の事実の主張を検算
+check(
+  run(`UNIQUE_HANDS.filter(isPair).every((h) => RFI_DRILLS.every((d) => d.sets.raise.has(h)))`),
+  '合言葉「ペアは全席レイズ」が実データで成り立つ',
+)
+check(
+  run(`MANTRAS.some((m) => m.note.includes('7.5bb') && m.note.includes('10bb')) && THREEBET_SIZE.ip === '7.5bb' && THREEBET_SIZE.oop === '10bb'`),
+  '合言葉のサイズが THREEBET_SIZE と一致',
+)
+
+// ミス集の「UTG では 84%」を foldBaseline から検算
+check(
+  Math.abs(run(`DRILL_BY_KEY['RFI_UTG'].foldBaseline`) - 84) < 1,
+  'ミス集の「UTG では 84%」が foldBaseline と一致',
+  `${run(`DRILL_BY_KEY['RFI_UTG'].foldBaseline`).toFixed(1)}%`,
+)
 
 // ---- やさしい説明 (初心者版) ----
 //
@@ -1576,6 +1668,111 @@ const glossaryFilter = run(`(() => {
 })()`)
 check(glossaryFilter.hit > 0 && glossaryFilter.hit < glossaryFilter.all, '用語検索で絞り込める', JSON.stringify(glossaryFilter))
 check(glossaryFilter.miss === 1, '当たらない検索は「ありません」の1行だけ', String(glossaryFilter.miss))
+
+// ---- UI: よくあるミス / 勝率表 / 早見表 ----
+
+check(run('el.mistakesBody.children.length') === run('MISTAKES.length'), 'よくあるミスが全件描画される')
+check(
+  run(`el.mistakesBody.children.every((item) => item.children.length === 3)`),
+  'ミスの各項目が タイトル / なぜまずい / どうする を持つ',
+)
+
+// 勝率表: 169 マス、全部タップできて、タップすると勝率が出る
+check(run('el.equityGrid.children.length') === 169, '勝率表が 169 マス描かれる')
+const equityPick = run(`(() => {
+  pickEquityHand('K7o')
+  const first = { hidden: el.equityAnswer.hidden, text: el.equityAnswer.textContent }
+  pickEquityHand('K7o') // トグルで解除
+  const cleared = el.equityAnswer.hidden
+  pickEquityHand('76s')
+  const second = el.equityAnswer.textContent
+  pickEquityHand('76s')
+  return { first, cleared, second }
+})()`)
+check(
+  equityPick.first.hidden === false && equityPick.first.text.includes('55.0%') && equityPick.first.text.includes('どの席からも開けない'),
+  '勝率表: K7o をタップすると勝率と「勝率を実現しにくい」系の説明が出る',
+  equityPick.first.text.slice(0, 60),
+)
+check(equityPick.first.text.includes('実現'), '勝率表: K7o に勝率≠期待値の注釈が付く', equityPick.first.text)
+check(equityPick.cleared === true, '勝率表: もう一度タップすると閉じる')
+check(
+  equityPick.second.includes('45.2%') && equityPick.second.includes('全席で開ける') && equityPick.second.includes('化け'),
+  '勝率表: 76s は勝率が低いのに開ける側の説明が出る',
+  equityPick.second.slice(0, 60),
+)
+
+// 早見表: 開閉・タブ・中身
+const sheetFlow = run(`(() => {
+  const initial = el.sheet.hidden
+  openSheet('positions')
+  const positions = {
+    hidden: el.sheet.hidden,
+    tabs: el.sheetTabs.children.length,
+    rows: el.sheetBody.children.find((c) => c.tagName === undefined || true) && el.sheetBody.children.length,
+  }
+  // ポジションのタブ: 6 席ぶんの行がある
+  const positionTable = el.sheetBody.children.find((c) => c.children && c.children.some && c.children.some((x) => x.children))
+  // スタブは子孫の textContent を集計しないので、再帰で拾う
+  const collectText = (node) => {
+    let text = node.textContent || ''
+    for (const child of node.children || []) text += ' ' + collectText(child)
+    return text
+  }
+  selectSheetPane('blinds')
+  const blindsText = collectText(el.sheetBody)
+  selectSheetPane('size')
+  const sizeText = collectText(el.sheetBody)
+  selectSheetPane('mantra')
+  const mantraCount = el.sheetBody.children[0].children.length
+  selectSheetPane('glossary')
+  setSheetQuery('ドミネート')
+  const glossaryChildren = el.sheetBody.children.length
+  setSheetQuery('')
+  closeSheet()
+  return { initial, positions, blindsText, sizeText, mantraCount, closed: el.sheet.hidden, glossaryChildren }
+})()`)
+check(sheetFlow.initial === true, '早見表は最初は閉じている')
+check(sheetFlow.positions.hidden === false && sheetFlow.positions.tabs === 5, '早見表が開いてタブが 5 つある', String(sheetFlow.positions.tabs))
+check(sheetFlow.positions.rows > 0, '早見表: ポジションのタブに中身がある')
+check(
+  sheetFlow.blindsText.includes('0.5bb') && sheetFlow.blindsText.includes('二択') && sheetFlow.blindsText.includes('27'),
+  '早見表: SB/BB タブに 二択・ポットオッズ (27%) が出る',
+  sheetFlow.blindsText.slice(0, 80),
+)
+check(
+  sheetFlow.sizeText.includes('2.5bb') && sheetFlow.sizeText.includes('7.5bb') && sheetFlow.sizeText.includes('10bb'),
+  '早見表: サイズのタブに 2.5bb / 7.5bb / 10bb が出る',
+)
+check(sheetFlow.mantraCount === run('MANTRAS.length') * 2, '早見表: 合言葉が全件出る (dt+dd)', String(sheetFlow.mantraCount))
+check(sheetFlow.glossaryChildren > 0, '早見表: 用語タブで検索できる')
+check(sheetFlow.closed === true, '早見表が閉じられる')
+
+// BB のポットオッズの主張 (1.5bb 払って 5.5bb のポット ≈ 27%) をデータから検算
+const bbOdds = run(`(() => {
+  const openBb = bbValue(RAISE_SIZE.DEFAULT)
+  const cost = openBb - BLINDS.BB
+  const pot = openBb * 2 + BLINDS.SB
+  return { cost, pot, pct: (cost / pot) * 100 }
+})()`)
+check(
+  bbOdds.cost === 1.5 && bbOdds.pot === 5.5 && Math.abs(bbOdds.pct - 27.3) < 0.5,
+  '早見表: BB のポットオッズ計算 (1.5bb で 5.5bb を狙う ≈ 27%)',
+  `${bbOdds.cost}bb / ${bbOdds.pot}bb = ${bbOdds.pct.toFixed(1)}%`,
+)
+
+// 席をタップすると早見表が開く配線 (renderQuestion 経由で seat-tappable が付いている)
+const seatTappable = run(`(() => {
+  renderQuestion(state, current, () => {}, () => {})
+  return el.table.children
+    .filter((c) => c.attributes.class && c.attributes.class.startsWith('seat '))
+    .map((c) => c.attributes.class.includes('seat-tappable'))
+})()`)
+check(
+  seatTappable.length === 6 && seatTappable.every(Boolean),
+  '出題のテーブル図: 6 席全部がタップできる (早見表への入口)',
+  JSON.stringify(seatTappable),
+)
 
 // 後片付け: 以降のチェックに狙い撃ち / サイズモードを持ち越さない
 run(`commit({ ...state, focus: null, mode: 'rfi' }); advance()`)
