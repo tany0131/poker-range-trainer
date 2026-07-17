@@ -1010,6 +1010,22 @@ check(bbGuide.includes('進め方') && bbGuide.includes('誰のレイズか'), '
 check(run(`FAQ.some((e) => e.q.includes('BB のとき'))`), 'FAQ: BB の進め方の項目がある')
 check(run(`FAQ.some((e) => e.q.includes('GTO'))`), 'FAQ: GTO ツールの項目がある')
 
+// FAQ「2bb と 3bb どっちがいい」で言い切っているポットオッズを BLINDS から検算
+const openOdds = run(`(() => {
+  const oddsFor = (openBb) => {
+    const cost = openBb - BLINDS.BB
+    const pot = openBb * 2 + BLINDS.SB
+    return (cost / pot) * 100
+  }
+  return { two: oddsFor(2), half: oddsFor(2.5), three: oddsFor(3) }
+})()`)
+check(
+  Math.abs(openOdds.two - 22.2) < 0.5 && Math.abs(openOdds.half - 27.3) < 0.5 && Math.abs(openOdds.three - 30.8) < 0.5,
+  'FAQ: 2bb/2.5bb/3bb の BB ポットオッズ (約22/27/31%) が計算と一致',
+  `${openOdds.two.toFixed(1)} / ${openOdds.half.toFixed(1)} / ${openOdds.three.toFixed(1)}%`,
+)
+check(run(`FAQ.some((e) => e.q.includes('2bb') && e.a.includes('22%') && e.a.includes('31%'))`), 'FAQ: オープンサイズ比較の項目がある')
+
 // ---- 勝率表 (対ランダム勝率) ----
 //
 // tools/gen-equity.mjs が生成した静的データの検算。
