@@ -208,6 +208,8 @@
           <p class="ref-note" id="ref-note"></p>
           <p class="ref-stats" id="ref-stats"></p>
 
+          <button class="ref-miss-toggle" id="ref-miss-toggle">自分のミスを重ねる: OFF</button>
+
           <div class="grid" id="ref-grid" aria-hidden="true"></div>
           <div class="legend" id="ref-legend"></div>
 
@@ -226,6 +228,36 @@
               <p class="coach-text" id="ref-answer-tip"></p>
             </div>
           </div>
+        </div>
+      </details>
+
+      <details class="card fill">
+        <summary>レンジ穴埋めテスト — 自分で描けるか</summary>
+        <div class="fill-wrap">
+          <p class="reference-lead">
+            チャートの<strong>境界線上のマスだけを 12 個隠します</strong>。? をタップしてアクションを選び、採点。
+            見て覚えたつもりでも、自分で描けなければ実戦では出てきません。
+          </p>
+
+          <div class="ref-group">
+            <span class="ref-group-label">RFI</span>
+            <div class="ref-btns" id="fill-rfi"></div>
+          </div>
+          <div class="ref-group">
+            <span class="ref-group-label">vs RFI</span>
+            <div class="ref-btns" id="fill-vs"></div>
+          </div>
+
+          <p class="ref-note" id="fill-note"></p>
+
+          <div class="grid" id="fill-grid" aria-hidden="true"></div>
+          <div class="legend" id="fill-legend"></div>
+
+          <div class="fill-controls">
+            <button class="fill-btn" id="fill-grade">採点する</button>
+            <button class="fill-btn" id="fill-retry" hidden>別のマスでもう一度</button>
+          </div>
+          <p class="fill-result" id="fill-result" hidden></p>
         </div>
       </details>
 
@@ -352,6 +384,24 @@
           <p>
             そして<strong>レイズされた側に回ったとき、SB は常に 3ベットかフォールドの二択</strong>になります (コールを作らない)。
             OOP な上に BB がまだ後ろに残っているので、安く見に行くと2人相手に不利な位置で戦うことになるからです。
+          </p>
+
+          <h3>BB の進め方 — 手ではなくレイザーから見る</h3>
+          <p>
+            BB で迷う人の多くは、カードを先に見て「この手は強いか？」から入ります。順番が逆です。
+            <strong>先にレイザーの席を見る。</strong>相手が UTG なら相手は強い手しか持っていないので狭く (約27%)、
+            BTN なら相手は半分近くゴミ手なので広く (約半分) 戦えます。同じ手でも相手次第で答えが変わる。
+          </p>
+          <ol>
+            <li><strong>誰のレイズか</strong> — 後ろの席ほど広く戦える</li>
+            <li><strong>3ベットの手か</strong> — 強い手 + ホイールエース系のブラフ枠</li>
+            <li><strong>コールの手か</strong> — 追加 1.5bb で 5.5bb を狙える (27% で元が取れる)。そろい・つながり・ペアは広く</li>
+            <li><strong>どれでもなければ降りる</strong> — 「もう 1bb 払った」は理由にならない</li>
+          </ol>
+          <p>
+            コールした後の心構えもひとつだけ: BB のコールレンジは弱い手が多いぶん、
+            <strong>フロップで何も当たらなかったら素直に降りる</strong>のが基本です。
+            プリフロップで安く見た分を、当たらなかったフロップで取り返そうとしない。
           </p>
 
           <h3>BB が広く守れる理由</h3>
@@ -661,6 +711,14 @@
         <div class="leaks" id="leaks" hidden>
           <p class="leak-tendency" id="leak-tendency"></p>
           <ul class="leak-list" id="leak-list"></ul>
+        </div>
+
+        <div class="weak-hands" id="weak-hands" hidden>
+          <h3 class="stats-head">苦手ハンド — タップでそのスポットを狙い撃ち</h3>
+          <ul class="leak-list" id="weak-hand-list"></ul>
+          <p class="stats-note">
+            一度間違えて、まだミスより2回多く正解できていない手。モードの<strong>「苦手」</strong>を選ぶと、ここだけが出題されます。
+          </p>
         </div>
 
         <div class="controls">

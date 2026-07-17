@@ -35,6 +35,13 @@ const MODES = [
     easyHint: 'いくら賭けるかの練習。bb = いちばん安い賭け金1個ぶんの単位で、持ち金は 100bb。額は手の強さでは変えない (変えると読まれる) ので、ここではカードを配りません。覚えるのは2つだけです。',
   },
   {
+    id: 'weakness',
+    label: '苦手',
+    drills: () => DRILLS,
+    hint: '一度でも間違えて、まだ取り返せていない手だけを全スポット横断で出題する。ミス数より2回多く正解すると卒業。苦手が空のときは全スポットから普通に出る。',
+    easyHint: 'あなたが前に間違えた手だけが出ます。同じ手をミスより2回多く正解できれば卒業して出なくなります。まだ間違いが無ければ、ふつうの出題になります。',
+  },
+  {
     id: 'mixed',
     label: 'ミックス',
     drills: () => DRILLS,
@@ -62,8 +69,18 @@ const drawBoundaryHand = () => randomOf(BOUNDARY_HANDS)
 
 // focusKey が指定されていれば、そのスポットだけを出題する (弱点の狙い撃ち)。
 // ハンドの引き方はモードの規則をそのまま使う。
-const drawFresh = (modeId, focusKey = null) => {
+const drawFresh = (modeId, focusKey = null, state = null) => {
   const mode = MODE_BY_ID[modeId] || MODE_BY_ID.rfi
+
+  // 苦手モードは (スポット, ハンド) のペアを直接引く。プールが空なら通常の出題へ落ちる。
+  if (mode.id === 'weakness' && !focusKey && state) {
+    const pool = weakHands(state)
+    if (pool.length > 0) {
+      const item = randomOf(pool)
+      return { drillKey: item.drillKey, hand: item.hand, isReview: false }
+    }
+  }
+
   const drill = focusKey && DRILL_BY_KEY[focusKey] ? DRILL_BY_KEY[focusKey] : randomOf(mode.drills())
 
   // サイズはハンドに依存しないので配らない (配ると「手で額が変わる」と誤解させる)。
@@ -95,7 +112,7 @@ const takeQuestion = (state) => {
     .filter(([item]) => !state.focus || item.drillKey === state.focus)
 
   if (!useReview || eligible.length === 0) {
-    return { question: drawFresh(state.mode, state.focus), reviewQueue: queue }
+    return { question: drawFresh(state.mode, state.focus, state), reviewQueue: queue }
   }
 
   const [item, index] = eligible[Math.floor(Math.random() * eligible.length)]
@@ -110,4 +127,51 @@ const gradeAnswer = (question, chosenAction) => {
   const drill = DRILL_BY_KEY[question.drillKey]
   const correctAction = drill.answerFor(question.hand)
   return { correctAction, isCorrect: chosenAction === correctAction }
+}
+
+// ---- レンジ穴埋めテスト ----
+// チャートの「境界線上」(隣のマスと答えが変わる場所) だけを隠す。
+// 中身が一様な領域を隠しても記憶のテストにならないため。
+
+const FILL_BLANK_COUNT = 12
+
+const fillCandidates = (drill) => {
+  const at = (row, col) => ALL_HANDS[row * 13 + col]
+  const out = []
+
+  for (let row = 0; row < 13; row++) {
+    for (let col = 0; col < 13; col++) {
+      const hand = at(row, col)
+      const action = drill.answerFor(hand)
+
+      const neighbors = []
+      if (row > 0) neighbors.push(at(row - 1, col))
+      if (row < 12) neighbors.push(at(row + 1, col))
+      if (col > 0) neighbors.push(at(row, col - 1))
+      if (col < 12) neighbors.push(at(row, col + 1))
+
+      if (neighbors.some((neighbor) => drill.answerFor(neighbor) !== action)) out.push(hand)
+    }
+  }
+  return out
+}
+
+const pickFillBlanks = (drill) => {
+  const pool = fillCandidates(drill)
+  const count = Math.min(FILL_BLANK_COUNT, pool.length)
+  const blanks = []
+  for (let i = 0; i < count; i++) {
+    const index = Math.floor(Math.random() * pool.length)
+    blanks.push(pool[index])
+    pool.splice(index, 1)
+  }
+  return blanks
+}
+
+const gradeFillGuesses = (drill, blanks, guesses) => {
+  const wrong = blanks
+    .filter((hand) => guesses[hand] !== drill.answerFor(hand))
+    .map((hand) => ({ hand, correct: drill.answerFor(hand) }))
+  const pct = Math.round(((blanks.length - wrong.length) / blanks.length) * 100)
+  return { pct, wrong }
 }

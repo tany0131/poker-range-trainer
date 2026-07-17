@@ -72,6 +72,8 @@ const freshState = () => ({
   focus: null, // 特定スポットの狙い撃ち中はそのドリルキー
   daily: { date: todayKey(), log: [] }, // 今日の解答ログ。日替わりメニューの進捗はここから数える
   dailyStreak: { date: null, days: 0 }, // メニューを完走した最終日と連続日数
+  byHand: {}, // ハンド別の成績 (疎)。byHand[drillKey][hand] = { a: 出題数, w: ミス数 }
+  fillBest: {}, // レンジ穴埋めテストの自己ベスト (%)。fillBest[drillKey]
 })
 
 // 日付が変わっていれば今日のログは空。日付をまたいだ瞬間にメニューが自動でリセットされる。
@@ -109,6 +111,25 @@ const reconcile = (state) => {
   }
   const streak = next.dailyStreak || {}
   next.dailyStreak = { date: streak.date || null, days: streak.days || 0 }
+
+  // ハンド別成績: 消えたドリルと不正なハンドを落として形をそろえる
+  const byHand = {}
+  for (const [drillKey, hands] of Object.entries(next.byHand || {})) {
+    if (!DRILL_BY_KEY[drillKey]) continue
+    const cleaned = {}
+    for (const [hand, record] of Object.entries(hands || {})) {
+      if (!LEGAL_HANDS.has(hand) || !record) continue
+      cleaned[hand] = { a: record.a || 0, w: record.w || 0 }
+    }
+    if (Object.keys(cleaned).length > 0) byHand[drillKey] = cleaned
+  }
+  next.byHand = byHand
+
+  const fillBest = {}
+  for (const [drillKey, best] of Object.entries(next.fillBest || {})) {
+    if (DRILL_BY_KEY[drillKey] && typeof best === 'number') fillBest[drillKey] = best
+  }
+  next.fillBest = fillBest
 
   return next
 }
@@ -161,6 +182,22 @@ const foldCategory = (state, drillKey, hand, chosenAction, correctAction, isCorr
   }
 }
 
+// ハンド別の成績を1問ぶん進める。サイズのドリル (hand = null) は対象外。
+const foldByHand = (state, drillKey, hand, isCorrect) => {
+  if (hand === null || hand === undefined) return state.byHand
+
+  const drillHands = state.byHand[drillKey] || {}
+  const record = drillHands[hand] || { a: 0, w: 0 }
+
+  return {
+    ...state.byHand,
+    [drillKey]: {
+      ...drillHands,
+      [hand]: { a: record.a + 1, w: record.w + (isCorrect ? 0 : 1) },
+    },
+  }
+}
+
 // 今日のログを1問ぶん進める。日付が変わっていればここで捨てて新しい日を始める。
 const foldDaily = (state, drillKey) => {
   const today = todayKey()
@@ -194,11 +231,38 @@ const recordAnswer = (state, { drillKey, hand, chosenAction, correctAction, isCo
     ...state,
     byDrill: nextDrill,
     byCategory: foldCategory(state, drillKey, hand, chosenAction, correctAction, isCorrect),
+    byHand: foldByHand(state, drillKey, hand, isCorrect),
     streak: nextStreak,
     history: nextHistory,
     reviewQueue: nextQueue,
     daily: foldDaily(state, drillKey),
   }
+}
+
+// ---- 苦手ハンド ----
+// 「一度でも間違えて、まだ取り返せていない」手。ミス数より2つ多く正解できたら卒業。
+// 苦手モードの出題プールと、成績カードの苦手リストの両方がこれを使う。
+
+const isStillWeak = (record) => record.w > 0 && record.a - record.w < record.w + 2
+
+const weakHands = (state) => {
+  const out = []
+  for (const [drillKey, hands] of Object.entries(state.byHand || {})) {
+    if (!DRILL_BY_KEY[drillKey]) continue
+    for (const [hand, record] of Object.entries(hands)) {
+      if (isStillWeak(record)) out.push({ drillKey, hand, asked: record.a, wrong: record.w })
+    }
+  }
+  // ミス率の高い順 (同率ならミス回数の多い順)
+  return out.sort((x, y) => y.wrong / y.asked - x.wrong / x.asked || y.wrong - x.wrong)
+}
+
+// ---- レンジ穴埋めテストの自己ベスト ----
+
+const recordFillResult = (state, drillKey, pct) => {
+  const best = state.fillBest[drillKey] || 0
+  if (pct <= best) return state
+  return { ...state, fillBest: { ...state.fillBest, [drillKey]: pct } }
 }
 
 const drillRate = (state, drillKey) => {

@@ -200,9 +200,19 @@ const selectGrowthStep = (index) => {
 // 定石ビューアの選択スポットと、タップされたマス。一時的な状態なので保存しない。
 let referenceKey = DRILLS[0].key
 let referenceHand = null
+let referenceShowMiss = false
 
 const drawReference = () =>
-  renderReference(referenceKey, referenceHand, state.easyMode, selectReference, pickReferenceHand)
+  renderReference(
+    { key: referenceKey, hand: referenceHand, isEasy: state.easyMode, showMisses: referenceShowMiss, state },
+    selectReference,
+    pickReferenceHand,
+  )
+
+el.refMissToggle.addEventListener('click', () => {
+  referenceShowMiss = !referenceShowMiss
+  drawReference()
+})
 
 // スポットを切り替えたらタップは解除する (別スポットの答えが残ると混乱する)
 function selectReference(drillKey) {
@@ -221,11 +231,46 @@ function pickReferenceHand(hand) {
 // 一度でも練習していれば畳んだ状態で始める (毎回たたむ手間をかけさせない)。
 el.intro.open = state.history.length === 0
 
+// ---- レンジ穴埋めテスト ----
+// 挑戦中の状態は一時的 (自己ベストだけ state に保存する)。
+
+let fill = null
+
+const drawFill = () =>
+  renderFill(state, fill, { onSelect: startFill, onTap: tapFillCell })
+
+function startFill(drillKey) {
+  fill = { drillKey, blanks: pickFillBlanks(DRILL_BY_KEY[drillKey]), guesses: {}, result: null }
+  drawFill()
+}
+
+// タップするたびに、そのドリルで選べるアクションを順に切り替える
+function tapFillCell(hand) {
+  if (!fill || fill.result) return
+  const actions = DRILL_BY_KEY[fill.drillKey].actions.map((a) => a.id)
+  const current = fill.guesses[hand]
+  const next = actions[(actions.indexOf(current) + 1) % actions.length]
+  fill = { ...fill, guesses: { ...fill.guesses, [hand]: next } }
+  drawFill()
+}
+
+function gradeFill() {
+  if (!fill || fill.result) return
+  const result = gradeFillGuesses(DRILL_BY_KEY[fill.drillKey], fill.blanks, fill.guesses)
+  commit(recordFillResult(state, fill.drillKey, result.pct))
+  fill = { ...fill, result }
+  drawFill()
+}
+
+el.fillGrade.addEventListener('click', gradeFill)
+el.fillRetry.addEventListener('click', () => startFill(fill.drillKey))
+
 renderHelp()
 renderGlossary()
 renderFaq()
 renderMistakes()
 renderEquity(equityHand, pickEquityHand)
+startFill(DRILLS[0].key)
 closeSheet()
 renderGrowth(growthStep, selectGrowthStep)
 drawReference()

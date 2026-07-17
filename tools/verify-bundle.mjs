@@ -126,6 +126,9 @@ for (const file of ['dist/trainer.html', 'dist/artifact.html']) {
   check(Math.abs(run(`EQUITY_VS_RANDOM['AA']`) - 85.2) < 0.7, `${file}: 勝率のアンカー (AA) が正しい`)
   check(run(`(() => { openSheet('size'); const open = !el.sheet.hidden && el.sheetTabs.children.length === 5; closeSheet(); return open })()`), `${file}: 早見表が開く`)
   check(run('el.equityGrid.children.length') === 169, `${file}: 勝率グリッドが描画されている`)
+  check(run(`MODES.some((m) => m.id === 'weakness')`), `${file}: 苦手モードが入っている`)
+  check(run('fill !== null && fill.blanks.length === 12'), `${file}: レンジ穴埋めが初期化されている`)
+  check(run(`FAQ.some((e) => e.q.includes('GTO'))`), `${file}: GTO の FAQ が入っている`)
   check(run('el.dailyList.children.length') === 4, `${file}: メニューが描画されている`)
   check(run('el.glossaryBody.children.length') > 0, `${file}: 用語解説が描画されている`)
 }

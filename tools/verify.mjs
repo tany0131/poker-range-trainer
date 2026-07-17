@@ -787,6 +787,229 @@ check(sizeCoachOop.includes('OOP') && sizeCoachOop.includes('4x'), 'コーチ �
 const sizeCoachIp = run(`coachFor(DRILL_BY_KEY['SIZE_CO_BTN'], null).why`)
 check(sizeCoachIp.includes('IP') && sizeCoachIp.includes('3x'), 'コーチ サイズ: IP は 3x と説明する', sizeCoachIp)
 
+// ---- ハンド別成績と苦手 ----
+
+// recordAnswer がハンド別に数える (サイズの hand=null は数えない)
+const byHandFlow = run(`(() => {
+  let s = freshState()
+  s = recordAnswer(s, { drillKey: 'RFI_UTG', hand: 'KTo', chosenAction: 'raise', correctAction: 'fold', isCorrect: false })
+  s = recordAnswer(s, { drillKey: 'RFI_UTG', hand: 'KTo', chosenAction: 'fold', correctAction: 'fold', isCorrect: true })
+  s = recordAnswer(s, { drillKey: 'SIZE_RFI_UTG', hand: null, chosenAction: '2bb', correctAction: '2.5bb', isCorrect: false })
+  return { rec: s.byHand.RFI_UTG.KTo, sizing: s.byHand.SIZE_RFI_UTG || null }
+})()`)
+check(byHandFlow.rec.a === 2 && byHandFlow.rec.w === 1, 'ハンド別成績が数えられる', JSON.stringify(byHandFlow.rec))
+check(byHandFlow.sizing === null, 'サイズ (hand=null) はハンド別成績に入らない')
+
+// 苦手の定義: ミスより2回多く正解したら卒業
+const weakFlow = run(`(() => {
+  let s = freshState()
+  const record = (ok) => {
+    s = recordAnswer(s, { drillKey: 'RFI_UTG', hand: 'KTo', chosenAction: ok ? 'fold' : 'raise', correctAction: 'fold', isCorrect: ok })
+  }
+  record(false)
+  const afterMiss = weakHands(s).length
+  record(true)
+  record(true)
+  const beforeGraduate = weakHands(s).length
+  record(true)
+  const afterGraduate = weakHands(s).length
+  return { afterMiss, beforeGraduate, afterGraduate }
+})()`)
+check(weakFlow.afterMiss === 1, 'ミスすると苦手に入る', String(weakFlow.afterMiss))
+check(weakFlow.beforeGraduate === 1, '正解がミス+2回に届くまでは苦手のまま', String(weakFlow.beforeGraduate))
+check(weakFlow.afterGraduate === 0, 'ミスより2回多く正解すると卒業する', String(weakFlow.afterGraduate))
+
+// 苦手モード: プールがあればそこから出し、空なら普通に出る
+const weaknessDraw = run(`(() => {
+  let s = { ...freshState(), mode: 'weakness' }
+  s = recordAnswer(s, { drillKey: 'RFI_UTG', hand: 'KTo', chosenAction: 'raise', correctAction: 'fold', isCorrect: false })
+  s = recordAnswer(s, { drillKey: 'BTN_BB', hand: '76s', chosenAction: 'fold', correctAction: 'call', isCorrect: false })
+  const seen = new Set()
+  for (let i = 0; i < 500; i++) {
+    const q = drawFresh('weakness', null, s)
+    seen.add(q.drillKey + ':' + q.hand)
+  }
+  const emptyPoolKeys = new Set()
+  for (let i = 0; i < 500; i++) emptyPoolKeys.add(drawFresh('weakness', null, freshState()).drillKey)
+  return { seen: [...seen].sort(), fallbackVariety: emptyPoolKeys.size }
+})()`)
+check(
+  weaknessDraw.seen.length === 2 &&
+    weaknessDraw.seen.includes('RFI_UTG:KTo') &&
+    weaknessDraw.seen.includes('BTN_BB:76s'),
+  '苦手モード: 間違えた (スポット, ハンド) のペアだけが出る',
+  weaknessDraw.seen.join(' '),
+)
+check(weaknessDraw.fallbackVariety > 5, '苦手モード: 苦手が空なら普通の出題に落ちる', String(weaknessDraw.fallbackVariety))
+
+// 古い保存 (byHand / fillBest なし) も読める
+check(
+  run(`(() => {
+    localStorage.setItem('poker-range-trainer/v3', JSON.stringify({
+      version: 3, byDrill: {}, byCategory: {}, streak: { current: 0, best: 0 },
+      history: [], reviewQueue: [], soundOn: true, mode: 'rfi',
+    }))
+    const s = loadState()
+    return typeof s.byHand === 'object' && typeof s.fillBest === 'object' && weakHands(s).length === 0
+  })()`),
+  'byHand / fillBest の無い古い保存を安全に読み直す',
+)
+
+// ---- レンジ穴埋めテスト ----
+
+// 隠すのは境界線上のマスだけ (どの候補も、隣に答えの違うマスがある)
+const fillCandidateCheck = run(`(() => {
+  const bad = []
+  for (const drill of DRILLS) {
+    const at = (r, c) => ALL_HANDS[r * 13 + c]
+    const candidates = new Set(fillCandidates(drill))
+    for (let r = 0; r < 13; r++) {
+      for (let c = 0; c < 13; c++) {
+        const hand = at(r, c)
+        const neighbors = []
+        if (r > 0) neighbors.push(at(r - 1, c))
+        if (r < 12) neighbors.push(at(r + 1, c))
+        if (c > 0) neighbors.push(at(r, c - 1))
+        if (c < 12) neighbors.push(at(r, c + 1))
+        const isBoundary = neighbors.some((n) => drill.answerFor(n) !== drill.answerFor(hand))
+        if (isBoundary !== candidates.has(hand)) bad.push(drill.key + ':' + hand)
+      }
+    }
+  }
+  return bad
+})()`)
+check(fillCandidateCheck.length === 0, '穴埋め候補 = 境界線上のマス (全ドリルで一致)', fillCandidateCheck.slice(0, 3).join(','))
+
+const fillPickCheck = run(`(() => {
+  const results = []
+  for (const drill of DRILLS) {
+    const blanks = pickFillBlanks(drill)
+    const candidates = new Set(fillCandidates(drill))
+    results.push({
+      key: drill.key,
+      count: blanks.length,
+      unique: new Set(blanks).size === blanks.length,
+      allBoundary: blanks.every((h) => candidates.has(h)),
+    })
+  }
+  return results
+})()`)
+check(
+  fillPickCheck.every((r) => r.count === 12 && r.unique && r.allBoundary),
+  '穴埋め: 全ドリルで 12 マス・重複なし・全部境界線上',
+  JSON.stringify(fillPickCheck.filter((r) => !(r.count === 12 && r.unique && r.allBoundary)).slice(0, 2)),
+)
+
+// 採点と自己ベスト
+const fillGradeCheck = run(`(() => {
+  const drill = DRILL_BY_KEY['RFI_UTG']
+  const blanks = pickFillBlanks(drill)
+  const perfect = Object.fromEntries(blanks.map((h) => [h, drill.answerFor(h)]))
+  const allRight = gradeFillGuesses(drill, blanks, perfect)
+  const empty = gradeFillGuesses(drill, blanks, {})
+  let s = freshState()
+  s = recordFillResult(s, 'RFI_UTG', 75)
+  s = recordFillResult(s, 'RFI_UTG', 50) // 下回っても上書きしない
+  s = recordFillResult(s, 'RFI_UTG', 92)
+  return { allRight, emptyPct: empty.pct, best: s.fillBest.RFI_UTG }
+})()`)
+check(fillGradeCheck.allRight.pct === 100 && fillGradeCheck.allRight.wrong.length === 0, '穴埋め: 全問正解で 100%')
+check(fillGradeCheck.emptyPct === 0, '穴埋め: 未回答は全部間違い扱い')
+check(fillGradeCheck.best === 92, '穴埋め: 自己ベストは上がるときだけ更新される', String(fillGradeCheck.best))
+
+// UI: タップでアクションが循環し、採点まで通る
+const fillUi = run(`(() => {
+  startFill('RFI_UTG')
+  const drill = DRILL_BY_KEY['RFI_UTG']
+  const first = fill.blanks[0]
+
+  tapFillCell(first)
+  const afterOneTap = fill.guesses[first]
+  tapFillCell(first)
+  const afterTwoTaps = fill.guesses[first]
+
+  // 全マスを正解に合わせて採点
+  for (const hand of fill.blanks) {
+    let guard = 0
+    while (fill.guesses[hand] !== drill.answerFor(hand) && guard++ < 5) tapFillCell(hand)
+  }
+  gradeFill()
+
+  const afterGradeTap = fill.guesses[first]
+  tapFillCell(first) // 採点後はタップできない
+  return {
+    afterOneTap, afterTwoTaps,
+    pct: fill.result.pct,
+    best: state.fillBest.RFI_UTG,
+    locked: fill.guesses[first] === afterGradeTap,
+    gradeHidden: el.fillGrade.hidden,
+    retryShown: !el.fillRetry.hidden,
+    resultText: el.fillResult.textContent,
+  }
+})()`)
+check(fillUi.afterOneTap === 'raise' && fillUi.afterTwoTaps === 'fold', '穴埋め UI: タップでアクションが循環する', `${fillUi.afterOneTap} → ${fillUi.afterTwoTaps}`)
+check(fillUi.pct === 100 && fillUi.best === 100, '穴埋め UI: 全問正解で採点され自己ベストに入る', `${fillUi.pct}%`)
+check(fillUi.locked, '穴埋め UI: 採点後はマスを変えられない')
+check(fillUi.gradeHidden && fillUi.retryShown, '穴埋め UI: 採点後は「もう一度」に切り替わる')
+check(fillUi.resultText.includes('100%'), '穴埋め UI: 結果の文章が出る', fillUi.resultText.slice(0, 40))
+
+// ---- 定石ビューア: ミスの重ね書き ----
+
+const missOverlay = run(`(() => {
+  commit(recordAnswer(state, { drillKey: 'CO_BTN', hand: 'AJo', chosenAction: 'call', correctAction: 'threebet', isCorrect: false }))
+  selectReference('CO_BTN')
+  const before = el.refGrid.children.filter((c) => c.classList.contains('cell-missed')).length
+  referenceShowMiss = true
+  drawReference()
+  const marked = el.refGrid.children.filter((c) => c.classList.contains('cell-missed'))
+  const toggleText = el.refMissToggle.textContent
+  referenceShowMiss = false
+  drawReference()
+  const after = el.refGrid.children.filter((c) => c.classList.contains('cell-missed')).length
+  selectReference(DRILLS[0].key)
+  return { before, marked: marked.map((c) => c.textContent), toggleText, after }
+})()`)
+check(missOverlay.before === 0, 'ミス重ね書き: OFF のときは赤枠が無い')
+check(
+  missOverlay.marked.includes('AJo') && missOverlay.toggleText.includes('ON'),
+  'ミス重ね書き: ON にすると間違えた手に赤枠が付く',
+  missOverlay.marked.join(','),
+)
+check(missOverlay.after === 0, 'ミス重ね書き: OFF に戻すと消える')
+
+// 苦手リストが成績カードに出て、全部消えると隠れる
+const weakListUi = run(`(() => {
+  renderDashboard(state, selectFocus)
+  const shown = !el.weakHandsBox.hidden
+  const rows = el.weakHandList.children.map((r) => r.textContent)
+  renderDashboard(freshState(), selectFocus)
+  const hiddenWhenEmpty = el.weakHandsBox.hidden
+  renderDashboard(state, selectFocus)
+  return { shown, rows, hiddenWhenEmpty }
+})()`)
+check(weakListUi.shown && weakListUi.rows.some((r) => r.includes('AJo')), '苦手ハンドのリストが成績に出る', weakListUi.rows.join(' | '))
+check(weakListUi.hiddenWhenEmpty, '苦手が無ければリストは出ない')
+
+// 後片付け: 以降のチェックに苦手の記録を持ち越さない
+run(`commit({ ...freshState(), mode: state.mode, soundOn: state.soundOn, easyMode: state.easyMode }); renderDashboard(state, selectFocus); advance()`)
+
+// ---- BB の進め方 (早見表とFAQ) ----
+
+const bbGuide = run(`(() => {
+  openSheet('blinds')
+  const collectText = (node) => {
+    let text = node.textContent || ''
+    for (const child of node.children || []) text += ' ' + collectText(child)
+    return text
+  }
+  const text = collectText(el.sheetBody)
+  closeSheet()
+  return text
+})()`)
+check(bbGuide.includes('進め方') && bbGuide.includes('誰のレイズか'), '早見表: BB の進め方 (考える順番) が入っている')
+check(run(`FAQ.some((e) => e.q.includes('BB のとき'))`), 'FAQ: BB の進め方の項目がある')
+check(run(`FAQ.some((e) => e.q.includes('GTO'))`), 'FAQ: GTO ツールの項目がある')
+
 // ---- 勝率表 (対ランダム勝率) ----
 //
 // tools/gen-equity.mjs が生成した静的データの検算。

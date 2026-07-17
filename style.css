@@ -1084,6 +1084,115 @@ tbody tr:last-child td {
   margin: 0;
 }
 
+/* ---- レンジ穴埋めテスト ---- */
+
+.fill-wrap {
+  padding: 0 20px 20px;
+}
+
+/* 隠されていないマスは少し沈めて、? のマスに目が行くようにする */
+.cell.fill-context {
+  opacity: 0.45;
+}
+
+.cell.fill-blank {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  background: var(--panel-2);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.cell.fill-blank.act-raise,
+.cell.fill-blank.act-threebet {
+  background: var(--raise);
+  color: #06120b;
+}
+
+.cell.fill-blank.act-call {
+  background: var(--call);
+  color: #06121a;
+}
+
+.cell.fill-blank.act-fold {
+  background: var(--fold);
+  color: var(--text);
+}
+
+.cell.fill-right {
+  outline: 2px solid var(--raise);
+  outline-offset: -2px;
+}
+
+.cell.fill-wrong {
+  outline: 2px solid var(--bad);
+  outline-offset: -2px;
+  opacity: 1;
+}
+
+.fill-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.fill-btn {
+  flex: 1;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.fill-btn[hidden] {
+  display: none;
+}
+
+.fill-result {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.fill-result[hidden] {
+  display: none;
+}
+
+/* ---- ミスの重ね書き / 苦手 ---- */
+
+.cell-missed {
+  outline: 2px solid var(--bad);
+  outline-offset: -2px;
+}
+
+.ref-miss-toggle {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ref-miss-toggle.on {
+  background: var(--bad-dim);
+  border-color: var(--bad);
+  color: var(--text);
+}
+
+.weak-hands {
+  margin-top: 16px;
+}
+
+.weak-hand {
+  cursor: pointer;
+}
+
+.weak-hand:hover {
+  color: var(--accent);
+}
+
 /* ---- 勝率表 ---- */
 
 .equity-wrap {
@@ -1415,7 +1524,8 @@ details.glossary,
 details.faq,
 details.intro,
 details.mistakes,
-details.equity {
+details.equity,
+details.fill {
   padding: 0;
 }
 
@@ -1427,7 +1537,8 @@ details.glossary > summary,
 details.faq > summary,
 details.intro > summary,
 details.mistakes > summary,
-details.equity > summary {
+details.equity > summary,
+details.fill > summary {
   list-style: none;
   cursor: pointer;
   padding: 16px 20px;
@@ -1449,7 +1560,8 @@ details.glossary > summary::-webkit-details-marker,
 details.faq > summary::-webkit-details-marker,
 details.intro > summary::-webkit-details-marker,
 details.mistakes > summary::-webkit-details-marker,
-details.equity > summary::-webkit-details-marker {
+details.equity > summary::-webkit-details-marker,
+details.fill > summary::-webkit-details-marker {
   display: none;
 }
 
@@ -1461,7 +1573,8 @@ details.glossary > summary::after,
 details.faq > summary::after,
 details.intro > summary::after,
 details.mistakes > summary::after,
-details.equity > summary::after {
+details.equity > summary::after,
+details.fill > summary::after {
   content: '開く';
   font-size: 11px;
   font-weight: 400;
@@ -1477,7 +1590,8 @@ details.glossary[open] > summary::after,
 details.faq[open] > summary::after,
 details.intro[open] > summary::after,
 details.mistakes[open] > summary::after,
-details.equity[open] > summary::after {
+details.equity[open] > summary::after,
+details.fill[open] > summary::after {
   content: '閉じる';
 }
 
@@ -1489,7 +1603,8 @@ details.glossary > summary:hover,
 details.faq > summary:hover,
 details.intro > summary:hover,
 details.mistakes > summary:hover,
-details.equity > summary:hover {
+details.equity > summary:hover,
+details.fill > summary:hover {
   color: var(--text);
 }
 
@@ -1687,6 +1802,14 @@ button {
     font-size: 13px;
   }
 
+  .modes {
+    flex-wrap: wrap;
+  }
+
+  .mode-btn {
+    flex: 1 1 30%;
+  }
+
   .growth-body,
   .help-body,
   .reference-body,
@@ -1695,7 +1818,8 @@ button {
   .faq-wrap,
   .intro-body,
   .mistakes-wrap,
-  .equity-wrap {
+  .equity-wrap,
+  .fill-wrap {
     padding: 0 14px 16px;
   }
 
@@ -1707,7 +1831,8 @@ button {
   details.faq > summary,
   details.intro > summary,
   details.mistakes > summary,
-  details.equity > summary {
+  details.equity > summary,
+  details.fill > summary {
     padding: 14px;
   }
 

@@ -113,6 +113,17 @@ const el = {
   sheetTabs: document.getElementById('sheet-tabs'),
   sheetBody: document.getElementById('sheet-body'),
   sheetClose: document.getElementById('sheet-close'),
+  weakHandsBox: document.getElementById('weak-hands'),
+  weakHandList: document.getElementById('weak-hand-list'),
+  refMissToggle: document.getElementById('ref-miss-toggle'),
+  fillRfi: document.getElementById('fill-rfi'),
+  fillVs: document.getElementById('fill-vs'),
+  fillNote: document.getElementById('fill-note'),
+  fillGrid: document.getElementById('fill-grid'),
+  fillLegend: document.getElementById('fill-legend'),
+  fillGrade: document.getElementById('fill-grade'),
+  fillRetry: document.getElementById('fill-retry'),
+  fillResult: document.getElementById('fill-result'),
 }
 
 const NS = 'http://www.w3.org/2000/svg'
@@ -334,13 +345,15 @@ const renderQuestion = (state, question, onAnswer, onSeatTap = null) => {
 // ---- 判定 ----
 
 // onPick を渡すとマスがタップできるようになる (定石ビューアの「この手なんで？」)。
-const renderGridInto = (target, drill, currentHand = null, onPick = null) => {
+// missSet を渡すと、そのハンドに赤枠を付ける (自分のミスの重ね書き)。
+const renderGridInto = (target, drill, currentHand = null, onPick = null, missSet = null) => {
   target.innerHTML = ''
   for (const hand of ALL_HANDS) {
     const action = drill.answerFor(hand)
     const cell = document.createElement('div')
     cell.className = `cell ${ACTION_COLORS[action]}`
     if (currentHand !== null && hand === currentHand) cell.classList.add('current')
+    if (missSet && missSet.has(hand)) cell.classList.add('cell-missed')
     cell.textContent = hand
     if (onPick) {
       cell.classList.add('pickable')
@@ -519,6 +532,28 @@ const renderSpark = (state) => {
   const step = SPARK_W / (points.length - 1)
   const path = points.map((value, i) => `${(i * step).toFixed(1)},${y(value).toFixed(1)}`).join(' ')
   el.spark.appendChild(svg('polyline', { class: 'spark-line', points: path }))
+}
+
+// 苦手ハンド (一度間違えて、まだ取り返せていない手)。タップでそのスポットを狙い撃ち。
+const renderWeakHands = (state, onFocus) => {
+  const weak = weakHands(state).slice(0, 8)
+
+  if (weak.length === 0) {
+    el.weakHandsBox.hidden = true
+    return
+  }
+
+  el.weakHandsBox.hidden = false
+  el.weakHandList.innerHTML = ''
+
+  for (const item of weak) {
+    const drill = DRILL_BY_KEY[item.drillKey]
+    const row = document.createElement('li')
+    row.className = 'weak-hand'
+    row.textContent = `${drill.label} の ${item.hand} — ${item.asked} 回中 ${item.wrong} 回ミス`
+    row.addEventListener('click', () => onFocus(item.drillKey))
+    el.weakHandList.appendChild(row)
+  }
 }
 
 const renderLeaks = (state) => {
@@ -894,6 +929,19 @@ const sheetBlindsPane = (body) => {
   body.appendChild(
     sheetNote('しかもプリフロップは BB が最後 — BB が決めればその周は終わり、後ろから被せられる心配がない。'),
   )
+
+  body.appendChild(sheetHeading('BB の進め方 — 考える順番'))
+  body.appendChild(
+    sheetTable(
+      ['順', 'やること'],
+      [
+        ['1', '手より先に、誰のレイズかを見る。レイザーが後ろの席ほど広く戦える'],
+        ['2', '3ベットの手か？ 強い手 + ホイールエース系のブラフ枠なら上から被せる'],
+        ['3', `コールの手か？ 追加 ${fmtBb(bbCallCost)} で ${fmtBb(potAfterCall)} を狙える。そろい・つながり・ペアは広く見に行く`],
+        ['4', 'どれでもなければ降りる。「もう 1bb 払ったから」は理由にならない'],
+      ],
+    ),
+  )
   body.appendChild(
     sheetTable(
       ['相手のレイズ', 'BB が戦う割合'],
@@ -1029,19 +1077,94 @@ const renderRefAnswer = (drill, hand, isEasy) => {
   el.refAnswerTip.textContent = advice.tip
 }
 
-const renderReference = (selectedKey, pickedHand, isEasy, onSelect, onPick) => {
-  const drill = DRILL_BY_KEY[selectedKey]
+// 自分がミスしたことのある手 (このドリル限定)。重ね書き表示用。
+const missedHandsOf = (state, drillKey) => {
+  const hands = (state.byHand || {})[drillKey] || {}
+  return new Set(Object.keys(hands).filter((hand) => hands[hand].w > 0))
+}
 
-  renderRefButtons(el.refRfi, RFI_DRILLS, selectedKey, onSelect, (d) => d.hero)
-  renderRefButtons(el.refVs, VS_RFI_DRILLS, selectedKey, onSelect, (d) => d.label)
+const renderReference = (view, onSelect, onPick, onToggleMiss) => {
+  const drill = DRILL_BY_KEY[view.key]
+
+  renderRefButtons(el.refRfi, RFI_DRILLS, view.key, onSelect, (d) => d.hero)
+  renderRefButtons(el.refVs, VS_RFI_DRILLS, view.key, onSelect, (d) => d.label)
 
   el.refTitle.textContent = drill.title
   el.refNote.textContent = drill.note
   el.refStats.textContent = refStatsText(drill)
 
-  renderGridInto(el.refGrid, drill, pickedHand, onPick)
+  const misses = view.showMisses ? missedHandsOf(view.state, view.key) : null
+  el.refMissToggle.textContent = `自分のミスを重ねる: ${view.showMisses ? 'ON' : 'OFF'}`
+  el.refMissToggle.classList.toggle('on', view.showMisses)
+
+  renderGridInto(el.refGrid, drill, view.hand, onPick, misses)
   renderLegendInto(el.refLegend, drill)
-  renderRefAnswer(drill, pickedHand, isEasy)
+  renderRefAnswer(drill, view.hand, view.isEasy)
+}
+
+// ---- レンジ穴埋めテスト ----
+//
+// ? のマスをタップしてアクションを選び、採点する。境界線上のマスだけが隠れる。
+// view = { drillKey, blanks, guesses, result }
+
+const renderFill = (state, view, handlers) => {
+  const drill = DRILL_BY_KEY[view.drillKey]
+
+  renderRefButtons(el.fillRfi, RFI_DRILLS, view.drillKey, handlers.onSelect, (d) => d.hero)
+  renderRefButtons(el.fillVs, VS_RFI_DRILLS, view.drillKey, handlers.onSelect, (d) => d.label)
+
+  const filled = view.blanks.filter((hand) => view.guesses[hand]).length
+  const best = state.fillBest[view.drillKey]
+  el.fillNote.textContent =
+    `${drill.title} — ? のマスをタップしてアクションを選ぶ (${filled}/${view.blanks.length})` +
+    (best !== undefined ? `。自己ベスト ${best}%` : '')
+
+  const blankSet = new Set(view.blanks)
+  el.fillGrid.innerHTML = ''
+  for (const hand of ALL_HANDS) {
+    const cell = document.createElement('div')
+
+    if (!blankSet.has(hand)) {
+      cell.className = `cell ${ACTION_COLORS[drill.answerFor(hand)]} fill-context`
+      cell.textContent = hand
+    } else {
+      const guess = view.guesses[hand]
+      cell.className = `cell fill-blank${guess ? ` ${ACTION_COLORS[guess]}` : ''}`
+      cell.textContent = guess ? hand : '?'
+
+      if (view.result) {
+        const isRight = guess === drill.answerFor(hand)
+        cell.classList.add(isRight ? 'fill-right' : 'fill-wrong')
+        // 採点後は正解の色で見せる (間違えたマスこそ正しい答えを見て終わる)
+        if (!isRight) {
+          cell.className = `cell ${ACTION_COLORS[drill.answerFor(hand)]} fill-blank fill-wrong`
+          cell.textContent = hand
+        }
+      } else {
+        cell.classList.add('pickable')
+        cell.addEventListener('click', () => handlers.onTap(hand))
+      }
+    }
+
+    el.fillGrid.appendChild(cell)
+  }
+
+  renderLegendInto(el.fillLegend, drill)
+
+  el.fillGrade.hidden = Boolean(view.result)
+  el.fillRetry.hidden = !view.result
+
+  if (view.result) {
+    const { pct, wrong } = view.result
+    const wrongText =
+      wrong.length === 0
+        ? '全問正解。'
+        : `間違い: ${wrong.map((w) => `${w.hand} → ${actionLabelOf(drill, w.correct)}`).join(' / ')}`
+    el.fillResult.hidden = false
+    el.fillResult.textContent = `${view.blanks.length} マス中 ${view.blanks.length - wrong.length} 正解 (${pct}%)。${wrongText}`
+  } else {
+    el.fillResult.hidden = true
+  }
 }
 
 // ---- よくある質問 ----
@@ -1102,6 +1225,7 @@ const renderDashboard = (state, onFocus) => {
   renderFocus(state)
   renderSpark(state)
   renderLeaks(state)
+  renderWeakHands(state, onFocus)
   renderSound(state)
   renderEasy(state)
   renderStreak(state)
