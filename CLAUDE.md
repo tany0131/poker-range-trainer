@@ -17,8 +17,11 @@ node tools/verify-bundle.mjs # 畳んだ後のバンドルを実行して再検�
 
 `verify-bundle.mjs` を省略しないこと。ソースが通ってもインライン化で順序が壊れる事故は起きる。
 
-`js/equity.js` (対ランダム勝率) は `node tools/gen-equity.mjs` の生成物 — 手で編集しない。
-seed 固定モンテカルロなので再生成しても同じ値。verify.mjs が既知の解析値 (AA=85.2% 等) と照合する。
+`js/equity.js` (対ランダム勝率) は `node tools/gen-equity.mjs`、`js/matchups.js` (169×169 対戦マトリクス) は
+`node tools/gen-matchups.mjs` の生成物 — どちらも手で編集しない。seed 固定モンテカルロなので再生成しても同じ値。
+verify.mjs が既知の解析値 (AA=85.2%、AAvsKK≈82% 等) と照合し、さらに両者を突き合わせるクロスチェック
+(equityVsRange(全クラス) = EQUITY_VS_RANDOM) で系統誤差を検出する。js/gto.js のナッシュソルバーは
+搾取可能性 < 0.02bb を verify が毎回検査する (これが「均衡である」ことの保証)。
 
 ## 触る前に知っておくこと
 

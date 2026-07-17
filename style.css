@@ -1356,6 +1356,20 @@ tbody tr:last-child td {
   cursor: pointer;
 }
 
+/* ---- エクイティ電卓 / ソルバー ---- */
+
+.calc-wrap,
+.nash-wrap {
+  padding: 0 20px 20px;
+}
+
+.nash-h {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 14px 0 6px;
+}
+
 /* ---- よくある質問 ---- */
 
 .faq-wrap {
@@ -1544,7 +1558,9 @@ details.intro,
 details.mistakes,
 details.equity,
 details.fill,
-details.bluffq {
+details.bluffq,
+details.calc,
+details.nash {
   padding: 0;
 }
 
@@ -1558,7 +1574,9 @@ details.intro > summary,
 details.mistakes > summary,
 details.equity > summary,
 details.fill > summary,
-details.bluffq > summary {
+details.bluffq > summary,
+details.calc > summary,
+details.nash > summary {
   list-style: none;
   cursor: pointer;
   padding: 16px 20px;
@@ -1582,7 +1600,9 @@ details.intro > summary::-webkit-details-marker,
 details.mistakes > summary::-webkit-details-marker,
 details.equity > summary::-webkit-details-marker,
 details.fill > summary::-webkit-details-marker,
-details.bluffq > summary::-webkit-details-marker {
+details.bluffq > summary::-webkit-details-marker,
+details.calc > summary::-webkit-details-marker,
+details.nash > summary::-webkit-details-marker {
   display: none;
 }
 
@@ -1596,7 +1616,9 @@ details.intro > summary::after,
 details.mistakes > summary::after,
 details.equity > summary::after,
 details.fill > summary::after,
-details.bluffq > summary::after {
+details.bluffq > summary::after,
+details.calc > summary::after,
+details.nash > summary::after {
   content: '開く';
   font-size: 11px;
   font-weight: 400;
@@ -1614,7 +1636,9 @@ details.intro[open] > summary::after,
 details.mistakes[open] > summary::after,
 details.equity[open] > summary::after,
 details.fill[open] > summary::after,
-details.bluffq[open] > summary::after {
+details.bluffq[open] > summary::after,
+details.calc[open] > summary::after,
+details.nash[open] > summary::after {
   content: '閉じる';
 }
 
@@ -1628,7 +1652,9 @@ details.intro > summary:hover,
 details.mistakes > summary:hover,
 details.equity > summary:hover,
 details.fill > summary:hover,
-details.bluffq > summary:hover {
+details.bluffq > summary:hover,
+details.calc > summary:hover,
+details.nash > summary:hover {
   color: var(--text);
 }
 
@@ -1844,7 +1870,9 @@ button {
   .mistakes-wrap,
   .equity-wrap,
   .fill-wrap,
-  .bluffq-wrap {
+  .bluffq-wrap,
+  .calc-wrap,
+  .nash-wrap {
     padding: 0 14px 16px;
   }
 
@@ -1858,7 +1886,9 @@ button {
   details.mistakes > summary,
   details.equity > summary,
   details.fill > summary,
-  details.bluffq > summary {
+  details.bluffq > summary,
+  details.calc > summary,
+  details.nash > summary {
     padding: 14px;
   }
 

@@ -296,6 +296,41 @@ function answerBluff(roleId) {
 
 el.bluffNext.addEventListener('click', nextBluff)
 
+// ---- エクイティ電卓 ----
+
+let calcRangeId = 'UTG'
+let calcHand = null
+
+const drawCalc = () => renderCalc({ rangeId: calcRangeId, hand: calcHand }, selectCalcRange, pickCalcHand)
+
+function selectCalcRange(rangeId) {
+  calcRangeId = rangeId
+  drawCalc()
+}
+
+function pickCalcHand(hand) {
+  calcHand = calcHand === hand ? null : hand
+  drawCalc()
+}
+
+// ---- プッシュ/フォールド ソルバー ----
+// 解は stack ごとに1回だけ計算してキャッシュする (端末内で数十 ms)。
+
+const nashCache = {}
+let nashStack = 10
+
+const nashSolutionFor = (stackBb) => {
+  if (!nashCache[stackBb]) nashCache[stackBb] = solvePushFold(stackBb)
+  return nashCache[stackBb]
+}
+
+const drawNash = () => renderNash(nashSolutionFor(nashStack), selectNashStack)
+
+function selectNashStack(stackBb) {
+  nashStack = stackBb
+  drawNash()
+}
+
 renderHelp()
 renderGlossary()
 renderFaq()
@@ -303,6 +338,8 @@ renderMistakes()
 renderEquity(equityHand, pickEquityHand)
 startFill(DRILLS[0].key)
 nextBluff()
+drawCalc()
+drawNash()
 closeSheet()
 renderGrowth(growthStep, selectGrowthStep)
 drawReference()

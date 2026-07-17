@@ -331,6 +331,66 @@
         </div>
       </details>
 
+      <details class="card calc">
+        <summary>エクイティ電卓 — 自分の手 vs 相手のレンジ</summary>
+        <div class="calc-wrap">
+          <p class="reference-lead">
+            GTO ツールの土台になっている計算そのもの。相手のレンジを選ぶと、
+            <strong>全 169 ハンドの「そのレンジに対する勝率」をその場で計算</strong>してヒートマップにします。
+            チャートの答えが数字でどう裏付けられているか (そして数字だけでは決まらないか) が見えます。
+          </p>
+
+          <div class="ref-btns" id="calc-ranges"></div>
+          <p class="ref-note" id="calc-note"></p>
+
+          <div class="grid" id="calc-grid" aria-hidden="true"></div>
+
+          <div class="legend">
+            <span><span class="swatch eq-4"></span>60%+</span>
+            <span><span class="swatch eq-3"></span>50%+</span>
+            <span><span class="swatch eq-2"></span>42%+</span>
+            <span><span class="swatch eq-1"></span>34%+</span>
+            <span><span class="swatch eq-0"></span>それ未満</span>
+          </div>
+
+          <p class="ref-prompt" id="calc-prompt">マスをタップすると、勝率とチャートの答えの突き合わせが出ます。</p>
+          <p class="equity-answer" id="calc-answer" hidden></p>
+        </div>
+      </details>
+
+      <details class="card nash">
+        <summary>プッシュ/フォールド ソルバー — GTO をその場で計算する</summary>
+        <div class="nash-wrap">
+          <p class="reference-lead">
+            どこかのチャートの写しではなく、<strong>この端末がいま計算する本物のナッシュ均衡</strong>です。
+            場面: ヘッズアップ (SB 対 BB)、SB は「オールインか降りるか」、BB は「コールか降りるか」だけの世界。
+            持ち点が浅いトーナメント終盤はほぼこの形になり、そこでは以下が理論上の正解 (GTO) になります。
+          </p>
+
+          <div class="ref-btns" id="nash-stacks"></div>
+          <p class="ref-stats" id="nash-stats"></p>
+
+          <h3 class="nash-h">SB: オールインする手</h3>
+          <div class="grid" id="nash-sb-grid" aria-hidden="true"></div>
+
+          <h3 class="nash-h">BB: オールインをコールする手</h3>
+          <div class="grid" id="nash-bb-grid" aria-hidden="true"></div>
+
+          <div class="legend">
+            <span><span class="swatch act-raise"></span>ほぼ常に</span>
+            <span><span class="swatch act-call"></span>混合 (時々)</span>
+            <span><span class="swatch act-fold"></span>ほぼ無し</span>
+          </div>
+
+          <p class="ref-note">
+            持ち点が浅いほど両方のレンジが広がるのを確かめてください。
+            「搾取可能性」= この戦略に対して相手が最善を尽くしても、これ以上は取れないという保証の数字。
+            これが 0 に近いことが「GTO である」の定義です。100bb のキャッシュゲームでは使いません —
+            普段の練習はレンジ表のモードで。
+          </p>
+        </div>
+      </details>
+
       <details class="card faq">
         <summary>よくある質問 — <span id="faq-count"></span> 件</summary>
         <div class="faq-wrap">
@@ -801,6 +861,8 @@
     <script src="js/faq.js"></script>
     <script src="js/tips.js"></script>
     <script src="js/equity.js"></script>
+    <script src="js/matchups.js"></script>
+    <script src="js/gto.js"></script>
     <script src="js/quiz.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/ui.js"></script>

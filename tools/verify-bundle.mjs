@@ -131,6 +131,11 @@ for (const file of ['dist/trainer.html', 'dist/artifact.html']) {
   check(run(`FAQ.some((e) => e.q.includes('GTO'))`), `${file}: GTO の FAQ が入っている`)
   check(run(`threebetRoleOf(DRILL_BY_KEY['CO_BTN'], 'AJo') === 'bluff'`), `${file}: 役割分類が動く`)
   check(run('bluff !== null && bluff.hand !== null'), `${file}: 役割クイズが初期化されている`)
+  check(Math.abs(run(`equityVs('AA', 'KK')`) - 81.9) < 1.2, `${file}: 対戦マトリクスが入っている (AA vs KK)`)
+  check(run(`equityVs('J8s', 'J8s')`) === 50, `${file}: 対角は厳密に 50%`)
+  check(run(`(() => { const r = solvePushFold(10); return r.exploitability < 0.02 && r.jamPct > 50 && r.jamPct < 65 })()`), `${file}: ナッシュソルバーが動く (10bb)`)
+  check(run('el.calcGrid.children.length') === 169, `${file}: エクイティ電卓が描画されている`)
+  check(run('el.nashSbGrid.children.length') === 169, `${file}: ソルバーのグリッドが描画されている`)
   check(run('el.dailyList.children.length') === 4, `${file}: メニューが描画されている`)
   check(run('el.glossaryBody.children.length') > 0, `${file}: 用語解説が描画されている`)
 }

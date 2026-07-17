@@ -124,6 +124,15 @@ const el = {
   fillGrade: document.getElementById('fill-grade'),
   fillRetry: document.getElementById('fill-retry'),
   fillResult: document.getElementById('fill-result'),
+  calcRanges: document.getElementById('calc-ranges'),
+  calcNote: document.getElementById('calc-note'),
+  calcGrid: document.getElementById('calc-grid'),
+  calcPrompt: document.getElementById('calc-prompt'),
+  calcAnswer: document.getElementById('calc-answer'),
+  nashStacks: document.getElementById('nash-stacks'),
+  nashStats: document.getElementById('nash-stats'),
+  nashSbGrid: document.getElementById('nash-sb-grid'),
+  nashBbGrid: document.getElementById('nash-bb-grid'),
   bluffSpot: document.getElementById('bluff-spot'),
   bluffButtons: document.getElementById('bluff-buttons'),
   bluffResult: document.getElementById('bluff-result'),
@@ -1170,6 +1179,118 @@ const renderFill = (state, view, handlers) => {
   } else {
     el.fillResult.hidden = true
   }
+}
+
+// ---- エクイティ電卓 (自分の手 vs 相手のレンジ) ----
+
+const CALC_RANGES = [
+  ...RFI_DRILLS.map((drill) => ({
+    id: drill.hero,
+    label: `${drill.hero} オープン`,
+    set: drill.sets.raise,
+  })),
+  { id: 'random', label: 'ランダム', set: new Set(UNIQUE_HANDS) },
+]
+
+const CALC_RANGE_BY_ID = Object.fromEntries(CALC_RANGES.map((r) => [r.id, r]))
+
+const calcHeatClass = (pct) => {
+  if (pct >= 60) return 'eq-4'
+  if (pct >= 50) return 'eq-3'
+  if (pct >= 42) return 'eq-2'
+  if (pct >= 34) return 'eq-1'
+  return 'eq-0'
+}
+
+// BB ディフェンスの損益分岐 (追加 1.5bb で 5.5bb を狙う)
+const BB_DEFENSE_NEED = ((bbValue(RAISE_SIZE.DEFAULT) - BLINDS.BB) / (bbValue(RAISE_SIZE.DEFAULT) * 2 + BLINDS.SB)) * 100
+
+const calcAnswerText = (rangeId, hand) => {
+  const range = CALC_RANGE_BY_ID[rangeId]
+  const equity = equityVsRange(hand, range.set)
+  const lines = [`${hand} は ${range.label}レンジに対して勝率 ${equity.toFixed(1)}%。`]
+
+  const defenseDrill = DRILL_BY_KEY[`${rangeId}_BB`]
+  if (defenseDrill) {
+    const answer = defenseDrill.answerFor(hand)
+    const need = BB_DEFENSE_NEED.toFixed(0)
+    lines.push(`BB が守る損益分岐はポットオッズで約 ${need}%。チャートの答え (BB) は ${actionLabelOf(defenseDrill, answer)}。`)
+
+    if (equity >= BB_DEFENSE_NEED && answer === 'fold') {
+      lines.push('勝率はオッズを超えているのに降り — ドミネートや位置の悪さで、この勝率をそのまま実現できない手。オッズだけでは決められない実例。')
+    } else if (equity < BB_DEFENSE_NEED && answer !== 'fold') {
+      lines.push('勝率はオッズに足りないのに続行 — 化けやすさや主導権で、勝率の数字以上に取れる手。')
+    }
+  }
+
+  return lines.join(' ')
+}
+
+const renderCalc = (view, onSelectRange, onPick) => {
+  el.calcRanges.innerHTML = ''
+  for (const range of CALC_RANGES) {
+    const button = document.createElement('button')
+    button.className = `step-btn${range.id === view.rangeId ? ' active' : ''}`
+    button.textContent = range.label
+    button.addEventListener('click', () => onSelectRange(range.id))
+    el.calcRanges.appendChild(button)
+  }
+
+  const range = CALC_RANGE_BY_ID[view.rangeId]
+  el.calcNote.textContent =
+    view.rangeId === 'random'
+      ? '相手 = ランダムな 1 人 (勝率表と同じ前提)。'
+      : `相手 = ${range.label}レンジ ${pctOf(range.set).toFixed(0)}% (${range.set.size} ハンド)。全 169 ハンドの勝率をその場で計算している。`
+
+  el.calcGrid.innerHTML = ''
+  for (const hand of ALL_HANDS) {
+    const equity = equityVsRange(hand, range.set)
+    const cell = document.createElement('div')
+    cell.className = `cell pickable ${calcHeatClass(equity)}`
+    if (view.hand === hand) cell.classList.add('current')
+    cell.textContent = hand
+    cell.addEventListener('click', () => onPick(hand))
+    el.calcGrid.appendChild(cell)
+  }
+
+  el.calcPrompt.hidden = view.hand !== null
+  el.calcAnswer.hidden = view.hand === null
+  el.calcAnswer.textContent = view.hand ? calcAnswerText(view.rangeId, view.hand) : ''
+}
+
+// ---- プッシュ/フォールド ソルバー ----
+
+const NASH_STACKS = [3, 5, 8, 10, 12, 15, 20]
+
+// 頻度をマスの見た目に変える。ほぼ常に / 混合 / ほぼ無し の3段階。
+const nashCellClass = (freq) => (freq >= 0.9 ? 'act-raise' : freq <= 0.1 ? 'act-fold' : 'act-call')
+
+const renderNashGrid = (target, freqs) => {
+  target.innerHTML = ''
+  for (const hand of ALL_HANDS) {
+    const cell = document.createElement('div')
+    cell.className = `cell ${nashCellClass(freqs[hand])}`
+    cell.textContent = hand
+    target.appendChild(cell)
+  }
+}
+
+const renderNash = (result, onSelectStack) => {
+  el.nashStacks.innerHTML = ''
+  for (const stack of NASH_STACKS) {
+    const button = document.createElement('button')
+    button.className = `step-btn${stack === result.stackBb ? ' active' : ''}`
+    button.textContent = `${stack}bb`
+    button.addEventListener('click', () => onSelectStack(stack))
+    el.nashStacks.appendChild(button)
+  }
+
+  el.nashStats.textContent =
+    `${result.stackBb}bb 持ち: SB は ${result.jamPct.toFixed(1)}% をジャム、BB は ${result.callPct.toFixed(1)}% でコール。` +
+    `この解への最大搾取可能性は ${result.exploitability.toFixed(3)}bb — 実質、均衡 (= GTO)。`
+
+  renderNashGrid(el.nashSbGrid, result.jam)
+  renderNashGrid(el.nashBbGrid, result.call)
 }
 
 // ---- バリューかブラフか (3ベットの役割クイズ) ----

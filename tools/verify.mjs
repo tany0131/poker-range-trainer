@@ -107,6 +107,8 @@ const SCRIPTS = [
   'js/faq.js',
   'js/tips.js',
   'js/equity.js',
+  'js/matchups.js',
+  'js/gto.js',
   'js/quiz.js',
   'js/audio.js',
   'js/ui.js',
@@ -1025,6 +1027,133 @@ check(
   `${openOdds.two.toFixed(1)} / ${openOdds.half.toFixed(1)} / ${openOdds.three.toFixed(1)}%`,
 )
 check(run(`FAQ.some((e) => e.q.includes('2bb') && e.a.includes('22%') && e.a.includes('31%'))`), 'FAQ: オープンサイズ比較の項目がある')
+
+// ---- 対戦マトリクスと GTO 計算 ----
+
+// マッチアップのアンカー (解析的に知られている値)
+const MATCHUP_ANCHORS = [
+  ['AA', 'KK', 81.9],
+  ['AKs', 'QQ', 46.0],
+  ['AKo', '22', 47.3], // ペア側がわずかに有利なコインフリップ
+  ['AKs', 'AKo', 52.0], // 同ランクではスーテッドがわずかに上
+  ['72o', 'AA', 11.8],
+]
+for (const [a, b, expected] of MATCHUP_ANCHORS) {
+  const got = run(`equityVs('${a}', '${b}')`)
+  check(Math.abs(got - expected) < 1.2, `対戦 ${a} vs ${b} = ${got}%`, `(既知値 ~${expected}%)`)
+}
+
+// 対称性: equity(A,B) + equity(B,A) = 100 (格納が半分でも引きがずれない)
+const symmetryBad = run(`(() => {
+  const bad = []
+  for (let i = 0; i < 300; i++) {
+    const a = UNIQUE_HANDS[Math.floor(Math.random() * 169)]
+    const b = UNIQUE_HANDS[Math.floor(Math.random() * 169)]
+    if (Math.abs(equityVs(a, b) + equityVs(b, a) - 100) > 0.01) bad.push(a + '/' + b)
+  }
+  return bad
+})()`)
+check(symmetryBad.length === 0, '対戦マトリクスの対称性 (A→B + B→A = 100)', symmetryBad.slice(0, 3).join(','))
+
+// カードリムーバル込みコンボ数の検算
+check(run(`compatCombos('AKs', 'AQs')`) === 3, 'コンボ数: AKs を持つと AQs は 3 コンボに減る')
+check(run(`compatCombos('AA', 'AA')`) === 1, 'コンボ数: AA を持つと相手の AA は 1 コンボ')
+check(run(`compatCombos('AKo', 'QJo')`) === 12, 'コンボ数: 無関係なオフスーツは 12 のまま')
+
+// 最重要のクロスチェック: 独立に生成した 2 つのデータが一致するか。
+// equityVsRange(hand, 全クラス) は matchups.js から、EQUITY_VS_RANDOM は equity.js から来ており、
+// 生成コードも seed も別。両者が一致する = 評価関数・重み付け・格納の全部が正しい。
+const crossCheck = run(`(() => {
+  let worst = 0
+  let worstHand = ''
+  for (const hand of UNIQUE_HANDS) {
+    const diff = Math.abs(equityVsRange(hand, UNIQUE_HANDS) - EQUITY_VS_RANDOM[hand])
+    if (diff > worst) {
+      worst = diff
+      worstHand = hand
+    }
+  }
+  return { worst, worstHand }
+})()`)
+check(
+  crossCheck.worst < 0.8,
+  'クロスチェック: 対ランダム勝率が独立生成の勝率表と全 169 ハンドで一致',
+  `最大乖離 ${crossCheck.worst.toFixed(2)}pt (${crossCheck.worstHand})`,
+)
+
+// ---- プッシュ/フォールドのナッシュ均衡 ----
+
+const nashResults = run(`[3, 10, 20].map((s) => {
+  const r = solvePushFold(s)
+  return { stackBb: r.stackBb, jamPct: r.jamPct, callPct: r.callPct, exploitability: r.exploitability,
+           aaJam: r.jam.AA, aaCall: r.call.AA, trashCall: r.call['72o'] }
+})`)
+
+for (const result of nashResults) {
+  check(
+    result.exploitability < 0.02,
+    `ナッシュ ${result.stackBb}bb: 搾取可能性 ${result.exploitability.toFixed(4)}bb < 0.02bb (= ほぼ均衡)`,
+  )
+  check(result.aaJam > 0.99 && result.aaCall > 0.99, `ナッシュ ${result.stackBb}bb: AA は常にジャム & コール`)
+}
+
+check(
+  nashResults[0].jamPct > nashResults[1].jamPct && nashResults[1].jamPct > nashResults[2].jamPct,
+  'ナッシュ: 浅いほど SB のジャムレンジが広い',
+  nashResults.map((r) => `${r.stackBb}bb=${r.jamPct.toFixed(0)}%`).join(' > '),
+)
+check(
+  nashResults[0].callPct > nashResults[1].callPct && nashResults[1].callPct > nashResults[2].callPct,
+  'ナッシュ: 浅いほど BB のコールレンジが広い',
+)
+
+// 外部アンカー: 10bb の SB ジャムは公知のナッシュ解で ~58%
+const nash10 = nashResults[1]
+check(nash10.jamPct > 50 && nash10.jamPct < 65, `ナッシュ 10bb: SB ジャム ${nash10.jamPct.toFixed(1)}% (公知 ~58%)`)
+check(nash10.callPct > 30 && nash10.callPct < 45, `ナッシュ 10bb: BB コール ${nash10.callPct.toFixed(1)}% (公知 ~37%)`)
+check(nash10.trashCall < 0.05, 'ナッシュ 10bb: 72o はコールしない')
+
+// ---- UI: エクイティ電卓 / ソルバー ----
+
+const calcUi = run(`(() => {
+  selectCalcRange('UTG')
+  const cells = el.calcGrid.children.length
+  pickCalcHand('AJo')
+  const first = { hidden: el.calcAnswer.hidden, text: el.calcAnswer.textContent }
+  selectCalcRange('BTN')
+  const second = el.calcAnswer.textContent
+  pickCalcHand('AJo') // 解除
+  selectCalcRange('UTG')
+  return { cells, first, second }
+})()`)
+check(calcUi.cells === 169, 'エクイティ電卓: 169 マスのヒートマップが出る')
+check(
+  calcUi.first.hidden === false && calcUi.first.text.includes('勝率') && calcUi.first.text.includes('チャートの答え'),
+  'エクイティ電卓: タップで勝率とチャートの突き合わせが出る',
+  calcUi.first.text.slice(0, 60),
+)
+check(
+  calcUi.second !== calcUi.first.text && calcUi.second.includes('BTN'),
+  'エクイティ電卓: レンジを替えると数字が変わる',
+  calcUi.second.slice(0, 50),
+)
+
+const nashUi = run(`(() => {
+  selectNashStack(5)
+  return {
+    stats: el.nashStats.textContent,
+    sbCells: el.nashSbGrid.children.length,
+    bbCells: el.nashBbGrid.children.length,
+    buttons: el.nashStacks.children.length,
+  }
+})()`)
+check(nashUi.sbCells === 169 && nashUi.bbCells === 169, 'ソルバー: SB / BB 両方のグリッドが出る')
+check(nashUi.buttons === 7, 'ソルバー: スタック選択が 7 種類', String(nashUi.buttons))
+check(
+  nashUi.stats.includes('ジャム') && nashUi.stats.includes('搾取可能性'),
+  'ソルバー: 統計行にジャム率と搾取可能性が出る',
+  nashUi.stats.slice(0, 60),
+)
 
 // ---- 3ベットの役割 (バリュー / ブラフ) ----
 
