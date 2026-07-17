@@ -261,6 +261,24 @@
         </div>
       </details>
 
+      <details class="card bluffq">
+        <summary>バリューかブラフか — 3ベットの役割クイズ</summary>
+        <div class="bluffq-wrap">
+          <p class="reference-lead">
+            同じ「3ベット」でも役割は2つあります。<strong>バリュー</strong> = 呼ばれても勝ちにいける手で、ポットを育てる。
+            <strong>ブラフ</strong> = 降ろすのが主目的で、呼ばれた時のための保険 (ブロッカーや化け筋) を持つ手。
+            どちらのつもりで打つかを当ててください。
+          </p>
+
+          <p class="bluff-spot" id="bluff-spot"></p>
+          <div class="actions" id="bluff-buttons"></div>
+          <p class="fill-result" id="bluff-result" hidden></p>
+
+          <button class="fill-btn bluff-next" id="bluff-next" hidden>次の問題</button>
+          <p class="stats-note" id="bluff-score"></p>
+        </div>
+      </details>
+
       <details class="card equity">
         <summary>勝率表 — 期待値のきほん</summary>
         <div class="equity-wrap">
@@ -567,6 +585,33 @@
             (UTG / HJ / CO のどのレイズに対しても)。BTN がフラットすると後ろの SB / BB にスクイーズされるので、
             フラットは本当に強い手だけに絞るためです。BB のコールレンジには AJo も KJo も QTo も入るのと対照的で、
             <strong>同じ「コール」でも席が違えば意味が違う</strong>好例になっています。
+          </p>
+
+          <h3>ブラフの考え方 — なぜ弱い手で上乗せするのか</h3>
+          <p>
+            <strong>バリューだけで 3ベットしていると、強い手が稼げなくなります。</strong>
+            AA のときだけレイズする人に、相手は絶対に払いません。
+            ブラフが混ざっているからこそ「今回もブラフかも」と思わせて、本物の強い手に払ってもらえる。
+            ブラフは嘘というより、<strong>バリューの取り立て役</strong>です。
+          </p>
+          <p>
+            <strong>良いブラフ候補の3条件。</strong>
+            ① コールでは分が悪い (= バリューの手をブラフに回すのはもったいない)。
+            ② ブロッカーがある — 自分がその札を持っているだけで、相手が続けてくる強い手の組み合わせが減る。
+            ③ 呼ばれても化け筋がある — フラッシュやストレートに育つ余地。
+            この3つを全部満たす代表が<strong>ホイールエース (A5s〜A2s)</strong> で、
+            だから全スポットの 3ベットレンジに必ず入っています。
+          </p>
+          <p>
+            <strong>やってはいけないブラフが2つ。</strong>
+            AQo のような「コールで十分戦える手」をブラフに使う — これは役割の無駄づかい。
+            そして 72o のような完全なゴミで打つ — 呼ばれた瞬間に何の保険もない。
+            ブラフは<strong>「捨てるには惜しいが、コールはできない」中間の手</strong>から選びます。
+          </p>
+          <p>
+            そして一番大事なこと: <strong>プリフロップのブラフは、その場の気分でやるものではありません。</strong>
+            どの手がブラフ枠かはレンジ表に最初から書いてあります。決められた手で、決められた額で打つだけ。
+            「読まれたかな」「取り返したいな」でブラフを増やした瞬間に、搾取される側に回ります。
           </p>
 
           <h3>ベットサイズの覚え方 — 手ではなく位置で決まる</h3>

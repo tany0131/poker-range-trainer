@@ -1026,6 +1026,116 @@ check(
 )
 check(run(`FAQ.some((e) => e.q.includes('2bb') && e.a.includes('22%') && e.a.includes('31%'))`), 'FAQ: オープンサイズ比較の項目がある')
 
+// ---- 3ベットの役割 (バリュー / ブラフ) ----
+
+// 全スポットの全 3ベットハンドに役割が付き、レンジ外は null
+const roleCoverage = run(`(() => {
+  const bad = []
+  for (const drill of VS_RFI_DRILLS) {
+    for (const hand of UNIQUE_HANDS) {
+      const role = threebetRoleOf(drill, hand)
+      const inRange = drill.sets.threebet.has(hand)
+      if (inRange && role !== 'value' && role !== 'bluff') bad.push('norole:' + drill.key + ':' + hand)
+      if (!inRange && role !== null) bad.push('ghost:' + drill.key + ':' + hand)
+    }
+  }
+  return bad
+})()`)
+check(roleCoverage.length === 0, '役割: 全 3ベットハンドに value/bluff が付き、レンジ外は null', roleCoverage.slice(0, 3).join(','))
+
+// 「3ベットレンジはバリュー + ブラフの2階建て」が全スポットで構造的に成り立つ
+const roleMix = run(`VS_RFI_DRILLS.filter((d) => {
+  const roles = new Set([...d.sets.threebet].map((h) => threebetRoleOf(d, h)))
+  return !(roles.has('value') && roles.has('bluff'))
+}).map((d) => d.key)`)
+check(roleMix.length === 0, '役割: 全スポットの 3ベットレンジにバリューとブラフの両方がある', roleMix.join(','))
+
+// アンカー: 代表ハンドの役割
+const roleAnchors = [
+  ['CO_BTN', 'AKo', 'value'],
+  ['CO_BTN', 'QQ', 'value'],
+  ['UTG_HJ', 'A5s', 'bluff'], // ホイールエース
+  ['CO_BTN', 'AJo', 'bluff'], // AQo コールとの逆転 (ブロッカーブラフ)
+  ['CO_BTN', '65s', 'bluff'], // 低スーテッドのセミブラフ
+]
+for (const [key, hand, expected] of roleAnchors) {
+  const got = run(`threebetRoleOf(DRILL_BY_KEY['${key}'], '${hand}')`)
+  check(got === expected, `役割: ${key} の ${hand} は ${expected}`, `(実際 ${got})`)
+}
+
+// コーチの説明と役割がずれない (value ⟺ 「バリュー寄り」と説明する)
+const roleTextMismatch = run(`(() => {
+  const bad = []
+  for (const drill of VS_RFI_DRILLS) {
+    for (const hand of drill.sets.threebet) {
+      const role = threebetRoleOf(drill, hand)
+      const why = coachFor(drill, hand, false).why
+      const saysValue = why.includes('バリュー寄り')
+      if ((role === 'value') !== saysValue) bad.push(drill.key + ':' + hand)
+    }
+  }
+  return bad
+})()`)
+check(roleTextMismatch.length === 0, '役割: コーチの説明文と分類が全ハンドで一致する', roleTextMismatch.slice(0, 3).join(','))
+
+// UI: 役割クイズの一連の流れ
+const bluffFlow = run(`(() => {
+  nextBluff()
+  const spotText = el.bluffSpot.textContent
+  const buttons = el.bluffButtons.children.map((b) => b.dataset.role)
+  const correct = threebetRoleOf(DRILL_BY_KEY[bluff.drillKey], bluff.hand)
+  const wrongPick = correct === 'value' ? 'bluff' : 'value'
+
+  answerBluff(wrongPick)
+  const afterWrong = {
+    marks: el.bluffButtons.children.map((b) => [b.dataset.role, [...b.classList._set].filter((c) => c.startsWith('is-'))]),
+    result: el.bluffResult.hidden,
+    resultText: el.bluffResult.textContent,
+    score: el.bluffScore.textContent,
+    locked: (answerBluff(correct), bluff.score.asked), // 二度目の回答は数えない
+  }
+
+  nextBluff()
+  const afterNext = { chosen: bluff.chosen, resultHidden: el.bluffResult.hidden, scoreKept: bluff.score.asked }
+
+  // 正解も1回通す
+  const correct2 = threebetRoleOf(DRILL_BY_KEY[bluff.drillKey], bluff.hand)
+  answerBluff(correct2)
+  const scoreAfterRight = bluff.score
+
+  return { spotText, buttons, afterWrong, afterNext, scoreAfterRight }
+})()`)
+check(
+  bluffFlow.spotText.includes('3ベット') && bluffFlow.spotText.includes('役割'),
+  '役割クイズ: 出題文が出る',
+  bluffFlow.spotText.slice(0, 50),
+)
+check(
+  bluffFlow.buttons.length === 2 && bluffFlow.buttons.includes('value') && bluffFlow.buttons.includes('bluff'),
+  '役割クイズ: バリュー / ブラフ の2択',
+)
+const bluffCorrectMark = bluffFlow.afterWrong.marks.find(([, cls]) => cls.includes('is-correct'))
+const bluffWrongMark = bluffFlow.afterWrong.marks.find(([, cls]) => cls.includes('is-wrong'))
+check(Boolean(bluffCorrectMark) && Boolean(bluffWrongMark), '役割クイズ: 不正解で正解が緑・選択が赤になる', JSON.stringify(bluffFlow.afterWrong.marks))
+check(
+  bluffFlow.afterWrong.result === false && bluffFlow.afterWrong.resultText.length > 30,
+  '役割クイズ: 答えると役割の説明とコーチ文が出る',
+  bluffFlow.afterWrong.resultText.slice(0, 40),
+)
+check(bluffFlow.afterWrong.locked === 1, '役割クイズ: 二度目の回答は数えない', String(bluffFlow.afterWrong.locked))
+check(
+  bluffFlow.afterNext.chosen === null && bluffFlow.afterNext.resultHidden === true && bluffFlow.afterNext.scoreKept === 1,
+  '役割クイズ: 次の問題でリセットされ、スコアは持ち越す',
+)
+check(
+  bluffFlow.scoreAfterRight.asked === 2 && bluffFlow.scoreAfterRight.correct === 1,
+  '役割クイズ: スコアが正しく数えられる (2問中1問正解)',
+  JSON.stringify(bluffFlow.scoreAfterRight),
+)
+
+check(run(`FAQ.some((e) => e.q.includes('ブラフ'))`), 'FAQ: ブラフの項目がある')
+check(run(`MANTRAS.some((m) => m.phrase.includes('ブラフ'))`), '合言葉: ブラフの項目がある')
+
 // ---- 勝率表 (対ランダム勝率) ----
 //
 // tools/gen-equity.mjs が生成した静的データの検算。

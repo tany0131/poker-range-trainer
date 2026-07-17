@@ -265,12 +265,44 @@ function gradeFill() {
 el.fillGrade.addEventListener('click', gradeFill)
 el.fillRetry.addEventListener('click', () => startFill(fill.drillKey))
 
+// ---- バリューかブラフか (役割クイズ) ----
+// セッション内のスコアだけ持つ一時状態。3ベットする手の中から一様に引く。
+
+let bluff = null
+
+const drawBluff = () => renderBluff(state, bluff, { onAnswer: answerBluff })
+
+function nextBluff() {
+  const drill = VS_RFI_DRILLS[Math.floor(Math.random() * VS_RFI_DRILLS.length)]
+  const hands = [...drill.sets.threebet]
+  const hand = hands[Math.floor(Math.random() * hands.length)]
+  bluff = { drillKey: drill.key, hand, chosen: null, score: bluff ? bluff.score : { asked: 0, correct: 0 } }
+  drawBluff()
+}
+
+function answerBluff(roleId) {
+  if (!bluff || bluff.chosen !== null) return
+  const correct = threebetRoleOf(DRILL_BY_KEY[bluff.drillKey], bluff.hand)
+  bluff = {
+    ...bluff,
+    chosen: roleId,
+    score: {
+      asked: bluff.score.asked + 1,
+      correct: bluff.score.correct + (roleId === correct ? 1 : 0),
+    },
+  }
+  drawBluff()
+}
+
+el.bluffNext.addEventListener('click', nextBluff)
+
 renderHelp()
 renderGlossary()
 renderFaq()
 renderMistakes()
 renderEquity(equityHand, pickEquityHand)
 startFill(DRILLS[0].key)
+nextBluff()
 closeSheet()
 renderGrowth(growthStep, selectGrowthStep)
 drawReference()

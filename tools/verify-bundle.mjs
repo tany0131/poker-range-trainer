@@ -129,6 +129,8 @@ for (const file of ['dist/trainer.html', 'dist/artifact.html']) {
   check(run(`MODES.some((m) => m.id === 'weakness')`), `${file}: 苦手モードが入っている`)
   check(run('fill !== null && fill.blanks.length === 12'), `${file}: レンジ穴埋めが初期化されている`)
   check(run(`FAQ.some((e) => e.q.includes('GTO'))`), `${file}: GTO の FAQ が入っている`)
+  check(run(`threebetRoleOf(DRILL_BY_KEY['CO_BTN'], 'AJo') === 'bluff'`), `${file}: 役割分類が動く`)
+  check(run('bluff !== null && bluff.hand !== null'), `${file}: 役割クイズが初期化されている`)
   check(run('el.dailyList.children.length') === 4, `${file}: メニューが描画されている`)
   check(run('el.glossaryBody.children.length') > 0, `${file}: 用語解説が描画されている`)
 }

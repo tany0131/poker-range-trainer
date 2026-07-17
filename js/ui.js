@@ -124,6 +124,11 @@ const el = {
   fillGrade: document.getElementById('fill-grade'),
   fillRetry: document.getElementById('fill-retry'),
   fillResult: document.getElementById('fill-result'),
+  bluffSpot: document.getElementById('bluff-spot'),
+  bluffButtons: document.getElementById('bluff-buttons'),
+  bluffResult: document.getElementById('bluff-result'),
+  bluffScore: document.getElementById('bluff-score'),
+  bluffNext: document.getElementById('bluff-next'),
 }
 
 const NS = 'http://www.w3.org/2000/svg'
@@ -1165,6 +1170,61 @@ const renderFill = (state, view, handlers) => {
   } else {
     el.fillResult.hidden = true
   }
+}
+
+// ---- バリューかブラフか (3ベットの役割クイズ) ----
+//
+// 3ベットする手を見せて、その役割 (バリュー / ブラフ) を当てる。
+// 答えは threebetRoleOf (コーチの説明と同じ分岐) から出す。
+// view = { drillKey, hand, chosen, score: { asked, correct } }
+
+const BLUFF_ROLES = [
+  { id: 'value', label: 'バリュー', tone: 'aggro' },
+  { id: 'bluff', label: 'ブラフ', tone: 'passive' },
+]
+
+const ROLE_HEADLINES = {
+  value: '呼ばれても勝ちにいけるバリュー。ポットを育てたい 3ベット。',
+  bluff: '降ろすのが主目的のブラフ枠。呼ばれた時のための保険 (ブロッカー / 化け筋) 付き。',
+}
+
+const renderBluff = (state, view, handlers) => {
+  const drill = DRILL_BY_KEY[view.drillKey]
+
+  el.bluffSpot.textContent = `${drill.raiser} がレイズ。${drill.hero} のあなたは ${view.hand} で 3ベットする — この 3ベットの役割は？`
+
+  el.bluffButtons.innerHTML = ''
+  const correctRole = threebetRoleOf(drill, view.hand)
+
+  for (const role of BLUFF_ROLES) {
+    const button = document.createElement('button')
+    button.className = `action-btn tone-${role.tone}`
+    button.dataset.role = role.id
+    button.textContent = role.label
+    button.disabled = view.chosen !== null
+
+    if (view.chosen !== null) {
+      if (role.id === correctRole) button.classList.add('is-correct')
+      else if (role.id === view.chosen) button.classList.add('is-wrong')
+      else button.classList.add('is-muted')
+    }
+
+    button.addEventListener('click', () => handlers.onAnswer(role.id))
+    el.bluffButtons.appendChild(button)
+  }
+
+  if (view.chosen !== null) {
+    const advice = coachFor(drill, view.hand, state.easyMode)
+    el.bluffResult.hidden = false
+    el.bluffResult.textContent = `${ROLE_HEADLINES[correctRole]} ${advice.why}`
+    el.bluffNext.hidden = false
+  } else {
+    el.bluffResult.hidden = true
+    el.bluffNext.hidden = true
+  }
+
+  const { asked, correct } = view.score
+  el.bluffScore.textContent = asked > 0 ? `今回のセッション: ${asked} 問中 ${correct} 問正解` : ''
 }
 
 // ---- よくある質問 ----

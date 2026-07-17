@@ -1193,6 +1193,24 @@ tbody tr:last-child td {
   color: var(--accent);
 }
 
+/* ---- バリューかブラフか ---- */
+
+.bluffq-wrap {
+  padding: 0 20px 20px;
+}
+
+.bluff-spot {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+.bluff-next {
+  width: 100%;
+  margin-top: 10px;
+}
+
 /* ---- 勝率表 ---- */
 
 .equity-wrap {
@@ -1525,7 +1543,8 @@ details.faq,
 details.intro,
 details.mistakes,
 details.equity,
-details.fill {
+details.fill,
+details.bluffq {
   padding: 0;
 }
 
@@ -1538,7 +1557,8 @@ details.faq > summary,
 details.intro > summary,
 details.mistakes > summary,
 details.equity > summary,
-details.fill > summary {
+details.fill > summary,
+details.bluffq > summary {
   list-style: none;
   cursor: pointer;
   padding: 16px 20px;
@@ -1561,7 +1581,8 @@ details.faq > summary::-webkit-details-marker,
 details.intro > summary::-webkit-details-marker,
 details.mistakes > summary::-webkit-details-marker,
 details.equity > summary::-webkit-details-marker,
-details.fill > summary::-webkit-details-marker {
+details.fill > summary::-webkit-details-marker,
+details.bluffq > summary::-webkit-details-marker {
   display: none;
 }
 
@@ -1574,7 +1595,8 @@ details.faq > summary::after,
 details.intro > summary::after,
 details.mistakes > summary::after,
 details.equity > summary::after,
-details.fill > summary::after {
+details.fill > summary::after,
+details.bluffq > summary::after {
   content: '開く';
   font-size: 11px;
   font-weight: 400;
@@ -1591,7 +1613,8 @@ details.faq[open] > summary::after,
 details.intro[open] > summary::after,
 details.mistakes[open] > summary::after,
 details.equity[open] > summary::after,
-details.fill[open] > summary::after {
+details.fill[open] > summary::after,
+details.bluffq[open] > summary::after {
   content: '閉じる';
 }
 
@@ -1604,7 +1627,8 @@ details.faq > summary:hover,
 details.intro > summary:hover,
 details.mistakes > summary:hover,
 details.equity > summary:hover,
-details.fill > summary:hover {
+details.fill > summary:hover,
+details.bluffq > summary:hover {
   color: var(--text);
 }
 
@@ -1819,7 +1843,8 @@ button {
   .intro-body,
   .mistakes-wrap,
   .equity-wrap,
-  .fill-wrap {
+  .fill-wrap,
+  .bluffq-wrap {
     padding: 0 14px 16px;
   }
 
@@ -1832,7 +1857,8 @@ button {
   details.intro > summary,
   details.mistakes > summary,
   details.equity > summary,
-  details.fill > summary {
+  details.fill > summary,
+  details.bluffq > summary {
     padding: 14px;
   }
 

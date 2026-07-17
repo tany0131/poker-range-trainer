@@ -124,6 +124,17 @@ const rfiTip = (drill, hand) => {
 
 // ---- vs RFI: なぜ ----
 
+// 3ベットする手の「役割」。バリュー = 呼ばれても勝ちにいける / ブラフ = 降ろすのが主目的。
+// 判定の分岐は vsRfiThreebetWhy と同じ順序で揃えてある (説明と役割クイズの答えがずれないように)。
+// 実際のソルバー上ではグラデーションだが、1手1役に丸めるのはレンジの丸めと同じ設計判断。
+const threebetRoleOf = (drill, hand) => {
+  if (!drill.sets.threebet || !drill.sets.threebet.has(hand)) return null
+  if (calledAbove(drill, hand)) return 'bluff'
+  if (hand[0] === 'A' && isSuited(hand) && WHEEL_KICKERS.has(hand[1])) return 'bluff'
+  if (isPair(hand) || (isBroadwayRank(hand[0]) && isBroadwayRank(hand[1]))) return 'value'
+  return 'bluff'
+}
+
 const vsRfiThreebetWhy = (drill, hand) => {
   const sbSuffix =
     drill.hero === 'SB' ? ' SB にコールはない (3ベット・オア・フォールド) ので、続けるなら 3ベット一択。' : ''
