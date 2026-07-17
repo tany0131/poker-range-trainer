@@ -1155,6 +1155,83 @@ check(
   nashUi.stats.slice(0, 60),
 )
 
+// ---- オールインの考え方 (解説で言い切っている数字の検算) ----
+
+// 必要勝率 = 追加で払う額 ÷ 決着後のポット (BB が SB のジャムを受ける形)
+const allinNeed = (stackBb) => ((stackBb - 1) / (2 * stackBb)) * 100
+check(Math.abs(allinNeed(10) - 45) < 0.01, 'オールイン: 10bb 同士のコールに必要な勝率 = 45%')
+check(Math.abs(allinNeed(100) - 49.5) < 0.01, 'オールイン: 100bb 同士のコールに必要な勝率 = 49.5%')
+const allinHtml = readFileSync(join(ROOT, 'index.html'), 'utf8')
+check(
+  allinHtml.includes('<strong>45%</strong>') && allinHtml.includes('<strong>49.5%</strong>'),
+  '解説のオールイン必要勝率が計算と一致する数字で書かれている',
+)
+
+// 「普通はコールレンジのほうが狭い。ただし極端に浅いと逆転する」— 解説で教えている構造そのもの。
+// (最初は「必ず狭い」と書こうとして、この検証に 3bb の逆転を突きつけられて文言を直した経緯がある)
+const asymmetry = run(`[3, 5, 8, 10, 12, 15, 20].map((s) => {
+  const r = solvePushFold(s)
+  return [s, r.jamPct, r.callPct]
+})`)
+check(
+  asymmetry.filter(([s]) => s >= 5).every(([, jam, call]) => jam > call),
+  'オールイン: 5bb 以上ではジャムレンジ > コールレンジ (勝ち筋の非対称)',
+  asymmetry.map(([s, j, c]) => `${s}bb: ${j.toFixed(0)}/${c.toFixed(0)}`).join(' '),
+)
+const nash3 = asymmetry.find(([s]) => s === 3)
+check(
+  nash3[2] > nash3[1],
+  'オールイン: 3bb ではコールレンジがジャムレンジより広い (解説の「逆転」の実データ)',
+  `ジャム ${nash3[1].toFixed(0)}% < コール ${nash3[2].toFixed(0)}%`,
+)
+check(
+  Math.abs(nash3[1] - 79) < 3 && Math.abs(nash3[2] - 93) < 3,
+  '解説の「3bb: ジャム約79% / コール約93%」がソルバー出力と一致',
+  `${nash3[1].toFixed(1)}% / ${nash3[2].toFixed(1)}%`,
+)
+// 3bb で BB のコールに必要な勝率 = 2/6 ≈ 33% (解説の「33% 勝てれば見合う」)
+check(Math.abs(allinNeed(3) - 33.3) < 0.1, 'オールイン: 3bb 同士のコールに必要な勝率 ≈ 33%')
+
+// 解説と FAQ に書いた「10bb で ジャム約58% / コール約38%」がソルバーの出力と一致
+const nash10Again = asymmetry.find(([s]) => s === 10)
+check(
+  Math.abs(nash10Again[1] - 58) < 2 && Math.abs(nash10Again[2] - 38) < 2,
+  '解説の「10bb: ジャム約58% / コール約38%」がソルバー出力と一致',
+  `${nash10Again[1].toFixed(1)}% / ${nash10Again[2].toFixed(1)}%`,
+)
+
+check(run(`FAQ.some((e) => e.q.includes('オールイン'))`), 'FAQ: オールインの項目がある')
+
+// ---- ブロッカーの考え方 (解説で言い切っているコンボ数の検算) ----
+
+// 「A を1枚持つと AA は 6→3 / AK は 16→12」
+check(run(`combosOf('AA')`) === 6, 'ブロッカー: AA は 6 コンボ')
+check(run(`compatCombos('A5s', 'AA')`) === 3, 'ブロッカー: A を持つと相手の AA は 3 コンボに半減')
+check(
+  run(`compatCombos('A5s', 'AKs') + compatCombos('A5s', 'AKo')`) === 12,
+  'ブロッカー: A を持つと相手の AK は 16 → 12 コンボ',
+)
+check(
+  run(`combosOf('AKs') + combosOf('AKo')`) === 16,
+  'ブロッカー: AK は素で 16 コンボ (4 + 12)',
+)
+// AJo は AA / JJ の両方を削る
+check(
+  run(`compatCombos('AJo', 'AA') === 3 && compatCombos('AJo', 'JJ') === 3`),
+  'ブロッカー: AJo は AA と JJ を両方 3 コンボに削る',
+)
+// 解説の本文の数字が一致
+check(
+  allinHtml.includes('6 → 3 に半減') && allinHtml.includes('16 → 12'),
+  '解説のブロッカーのコンボ数が計算と一致する数字で書かれている',
+)
+check(run(`FAQ.some((e) => e.q.includes('ブロッカー'))`), 'FAQ: ブロッカーの項目がある')
+check(run(`MANTRAS.some((m) => m.phrase.includes('ブロッカー'))`), '合言葉: ブロッカーの項目がある')
+check(run(`MANTRAS.filter((m) => m.phrase.includes('オールイン')).length`) >= 2, '合言葉: オールインの項目がある')
+check(run(`GLOSSARY.some((g) => g.terms.some((t) => t.term.includes('ジャム')))`), '用語集: ジャム/オールインがある')
+check(run(`GLOSSARY.some((g) => g.terms.some((t) => t.term.includes('フォールドエクイティ')))`), '用語集: フォールドエクイティがある')
+check(run(`GLOSSARY.some((g) => g.terms.some((t) => t.term === 'ICM'))`), '用語集: ICM がある')
+
 // ---- 3ベットの役割 (バリュー / ブラフ) ----
 
 // 全スポットの全 3ベットハンドに役割が付き、レンジ外は null
