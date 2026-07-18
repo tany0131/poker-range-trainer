@@ -1039,6 +1039,111 @@ check(
 )
 check(run(`FAQ.some((e) => e.q.includes('2bb') && e.a.includes('22%') && e.a.includes('31%'))`), 'FAQ: オープンサイズ比較の項目がある')
 
+// ---- ミス履歴 ----
+
+// 間違いだけが記録され、日付・選択・正解を持つ
+const missLogFlow = run(`(() => {
+  let s = freshState()
+  s = recordAnswer(s, { drillKey: 'RFI_UTG', hand: 'AA', chosenAction: 'raise', correctAction: 'raise', isCorrect: true })
+  s = recordAnswer(s, { drillKey: 'CO_BTN', hand: 'AJo', chosenAction: 'call', correctAction: 'threebet', isCorrect: false })
+  s = recordAnswer(s, { drillKey: 'SIZE_RFI_SB', hand: null, chosenAction: '2.5bb', correctAction: '3bb', isCorrect: false })
+  return { count: s.missLog.length, first: s.missLog[0], second: s.missLog[1] }
+})()`)
+check(missLogFlow.count === 2, 'ミス履歴: 間違いだけが記録される', String(missLogFlow.count))
+check(
+  missLogFlow.first.drillKey === 'CO_BTN' && missLogFlow.first.hand === 'AJo' &&
+    missLogFlow.first.chosen === 'call' && missLogFlow.first.correct === 'threebet' &&
+    missLogFlow.first.d === run('todayKey()'),
+  'ミス履歴: 日付・スポット・手・選択・正解が残る',
+  JSON.stringify(missLogFlow.first),
+)
+check(missLogFlow.second.hand === null, 'ミス履歴: サイズのミスも残る (hand は null)')
+
+// 上限で古いものから消える
+check(
+  run(`(() => {
+    let s = freshState()
+    for (let i = 0; i < 210; i++) {
+      s = recordAnswer(s, { drillKey: 'RFI_UTG', hand: 'KTo', chosenAction: 'raise', correctAction: 'fold', isCorrect: false })
+    }
+    return s.missLog.length
+  })()`) === 200,
+  'ミス履歴: 200 件で頭打ちになる (古い順に消える)',
+)
+
+// 古い保存 (missLog なし) や壊れた項目も安全に読める
+check(
+  run(`(() => {
+    const s = reconcile({ version: 3, missLog: [
+      { d: '2026-07-01', drillKey: 'GONE', hand: 'AA', chosen: 'raise', correct: 'fold' },
+      { d: '2026-07-01', drillKey: 'RFI_UTG', hand: 'ZZ', chosen: 'raise', correct: 'fold' },
+      { d: '2026-07-01', drillKey: 'RFI_UTG', hand: 'KTo', chosen: 'raise', correct: 'fold' },
+    ] })
+    return s.missLog.length === 1 && s.missLog[0].hand === 'KTo'
+  })()`),
+  'ミス履歴: 消えたドリル・不正なハンドの項目は読み込み時に落とす',
+)
+check(run(`reconcile({ version: 3 }).missLog.length`) === 0, 'ミス履歴: missLog の無い古い保存も読める')
+
+// UI: 間違えると履歴カードに行が増え、開くと「なぜ」と「覚え方」が入っている
+const missLogUi = run(`(() => {
+  commit({ ...freshState(), mode: 'rfi', soundOn: state.soundOn, easyMode: false })
+  advance()
+  const drill = DRILL_BY_KEY[current.drillKey]
+  const correct = drill.answerFor(current.hand)
+  const wrong = drill.actions.map((a) => a.id).find((a) => a !== correct)
+  const hand = current.hand
+  answer(wrong)
+
+  const row = el.missLogBody.children[0]
+  const collectText = (node) => {
+    let text = node.textContent || ''
+    for (const child of node.children || []) text += ' ' + collectText(child)
+    return text
+  }
+  return {
+    count: el.missLogCount.textContent,
+    rows: el.missLogBody.children.length,
+    summaryText: row.children[0].textContent,
+    bodyText: collectText(row),
+    hand,
+    noteHidden: el.missLogNote.hidden,
+    hasTermLink: row.children.some((c) => (c.children || []).some((g) => (g.children || []).some((x) => x.className === 'term-link'))),
+  }
+})()`)
+check(missLogUi.rows === 1 && missLogUi.count === '1', 'ミス履歴 UI: 間違えると行が増える')
+check(
+  missLogUi.summaryText.includes(missLogUi.hand) && missLogUi.summaryText.includes('正解'),
+  'ミス履歴 UI: 見出しに 手 と 正解 が出る',
+  missLogUi.summaryText,
+)
+check(
+  missLogUi.bodyText.includes('なぜ:') && missLogUi.bodyText.includes('覚え方:'),
+  'ミス履歴 UI: 開くと「なぜ」と「覚え方」が読める',
+)
+check(missLogUi.noteHidden === true, 'ミス履歴 UI: 50 件以下なら省略の注記は出ない')
+
+// 新しい順に並ぶ
+const missLogOrder = run(`(() => {
+  commit(recordAnswer(state, { drillKey: 'BTN_BB', hand: '76s', chosenAction: 'fold', correctAction: 'call', isCorrect: false }))
+  renderMissLog(state)
+  return el.missLogBody.children.map((row) => row.children[0].textContent)
+})()`)
+check(missLogOrder[0].includes('76s'), 'ミス履歴 UI: 新しいミスが先頭に来る', missLogOrder[0])
+
+// 正解しても履歴は減らない (復習キューとの違い)
+check(
+  run(`(() => {
+    const before = state.missLog.length
+    commit(recordAnswer(state, { drillKey: 'BTN_BB', hand: '76s', chosenAction: 'call', correctAction: 'call', isCorrect: true }))
+    return state.missLog.length === before
+  })()`),
+  'ミス履歴: あとで正解しても履歴は消えない',
+)
+
+// 後片付け
+run(`commit({ ...freshState(), mode: 'rfi', soundOn: state.soundOn, easyMode: false }); renderDashboard(state, selectFocus); advance()`)
+
 // ---- ウィキ風の用語リンク ----
 
 // 別名の分解: 複合見出し 'IP / OOP' や括弧 'bb (ビッグブラインド)' から引ける

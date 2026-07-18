@@ -2,6 +2,7 @@
 
 const STORAGE_KEY = 'poker-range-trainer/v3'
 const DAILY_LOG_CAP = 400
+const MISS_LOG_CAP = 200
 const TARGET_RATE = 0.95
 const HISTORY_CAP = 300
 const SPARK_WINDOW = 20
@@ -74,6 +75,7 @@ const freshState = () => ({
   dailyStreak: { date: null, days: 0 }, // メニューを完走した最終日と連続日数
   byHand: {}, // ハンド別の成績 (疎)。byHand[drillKey][hand] = { a: 出題数, w: ミス数 }
   fillBest: {}, // レンジ穴埋めテストの自己ベスト (%)。fillBest[drillKey]
+  missLog: [], // 間違えた問題の履歴 (新しいものが末尾)。{ d, drillKey, hand, chosen, correct }
 })
 
 // 日付が変わっていれば今日のログは空。日付をまたいだ瞬間にメニューが自動でリセットされる。
@@ -130,6 +132,10 @@ const reconcile = (state) => {
     if (DRILL_BY_KEY[drillKey] && typeof best === 'number') fillBest[drillKey] = best
   }
   next.fillBest = fillBest
+
+  next.missLog = (next.missLog || [])
+    .filter((entry) => entry && DRILL_BY_KEY[entry.drillKey] && (entry.hand === null || LEGAL_HANDS.has(entry.hand)))
+    .slice(-MISS_LOG_CAP)
 
   return next
 }
@@ -227,6 +233,14 @@ const recordAnswer = (state, { drillKey, hand, chosenAction, correctAction, isCo
   const shouldQueue = !isCorrect && state.reviewQueue.length < MAX_REVIEW_QUEUE
   const nextQueue = shouldQueue ? [...state.reviewQueue, { drillKey, hand }] : state.reviewQueue
 
+  // ミスは履歴にも残す (復習キューと違って消費されない。振り返り用)
+  const nextMissLog = isCorrect
+    ? state.missLog
+    : [
+        ...state.missLog,
+        { d: todayKey(), drillKey, hand: hand ?? null, chosen: chosenAction, correct: correctAction },
+      ].slice(-MISS_LOG_CAP)
+
   return {
     ...state,
     byDrill: nextDrill,
@@ -236,6 +250,7 @@ const recordAnswer = (state, { drillKey, hand, chosenAction, correctAction, isCo
     history: nextHistory,
     reviewQueue: nextQueue,
     daily: foldDaily(state, drillKey),
+    missLog: nextMissLog,
   }
 }
 

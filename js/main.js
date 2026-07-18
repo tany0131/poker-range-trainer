@@ -116,6 +116,7 @@ el.easy.addEventListener('click', () => {
   renderEasy(state)
   renderModes(state, selectMode)
   drawReference()
+  renderMissLog(state)
   if (answered && current && lastChoice) {
     renderVerdict(state, current, gradeAnswer(current, lastChoice), lastChoice)
   }

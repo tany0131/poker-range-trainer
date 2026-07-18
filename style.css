@@ -1356,6 +1356,12 @@ tbody tr:last-child td {
   cursor: pointer;
 }
 
+/* ---- ミス履歴 ---- */
+
+.misslog-wrap {
+  padding: 0 20px 20px;
+}
+
 /* ---- 本文の用語リンク (ウィキ風) ---- */
 
 .term-link {
@@ -1579,7 +1585,8 @@ details.equity,
 details.fill,
 details.bluffq,
 details.calc,
-details.nash {
+details.nash,
+details.misslog {
   padding: 0;
 }
 
@@ -1595,7 +1602,8 @@ details.equity > summary,
 details.fill > summary,
 details.bluffq > summary,
 details.calc > summary,
-details.nash > summary {
+details.nash > summary,
+details.misslog > summary {
   list-style: none;
   cursor: pointer;
   padding: 16px 20px;
@@ -1621,7 +1629,8 @@ details.equity > summary::-webkit-details-marker,
 details.fill > summary::-webkit-details-marker,
 details.bluffq > summary::-webkit-details-marker,
 details.calc > summary::-webkit-details-marker,
-details.nash > summary::-webkit-details-marker {
+details.nash > summary::-webkit-details-marker,
+details.misslog > summary::-webkit-details-marker {
   display: none;
 }
 
@@ -1637,7 +1646,8 @@ details.equity > summary::after,
 details.fill > summary::after,
 details.bluffq > summary::after,
 details.calc > summary::after,
-details.nash > summary::after {
+details.nash > summary::after,
+details.misslog > summary::after {
   content: '開く';
   font-size: 11px;
   font-weight: 400;
@@ -1657,7 +1667,8 @@ details.equity[open] > summary::after,
 details.fill[open] > summary::after,
 details.bluffq[open] > summary::after,
 details.calc[open] > summary::after,
-details.nash[open] > summary::after {
+details.nash[open] > summary::after,
+details.misslog[open] > summary::after {
   content: '閉じる';
 }
 
@@ -1673,7 +1684,8 @@ details.equity > summary:hover,
 details.fill > summary:hover,
 details.bluffq > summary:hover,
 details.calc > summary:hover,
-details.nash > summary:hover {
+details.nash > summary:hover,
+details.misslog > summary:hover {
   color: var(--text);
 }
 
@@ -1891,7 +1903,8 @@ button {
   .fill-wrap,
   .bluffq-wrap,
   .calc-wrap,
-  .nash-wrap {
+  .nash-wrap,
+  .misslog-wrap {
     padding: 0 14px 16px;
   }
 
@@ -1907,7 +1920,8 @@ button {
   details.fill > summary,
   details.bluffq > summary,
   details.calc > summary,
-  details.nash > summary {
+  details.nash > summary,
+  details.misslog > summary {
     padding: 14px;
   }
 

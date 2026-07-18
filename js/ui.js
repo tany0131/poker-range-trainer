@@ -133,6 +133,9 @@ const el = {
   nashStats: document.getElementById('nash-stats'),
   nashSbGrid: document.getElementById('nash-sb-grid'),
   nashBbGrid: document.getElementById('nash-bb-grid'),
+  missLogBody: document.getElementById('misslog-body'),
+  missLogCount: document.getElementById('misslog-count'),
+  missLogNote: document.getElementById('misslog-note'),
   bluffSpot: document.getElementById('bluff-spot'),
   bluffButtons: document.getElementById('bluff-buttons'),
   bluffResult: document.getElementById('bluff-result'),
@@ -596,6 +599,74 @@ const renderWeakHands = (state, onFocus) => {
     row.addEventListener('click', () => onFocus(item.drillKey))
     el.weakHandList.appendChild(row)
   }
+}
+
+// ---- ミス履歴 ----
+// 間違えた問題を新しい順に一覧する。行を開くと「なぜ」と「覚え方」がその場で読める。
+// 復習キュー (消費されて消える) と違い、これは残り続ける振り返り用。
+
+const MISS_LOG_SHOWN = 50
+
+// '2026-07-18' → '7/18'
+const fmtMissDate = (dateKey) => {
+  const [, month, day] = dateKey.split('-').map(Number)
+  return `${month}/${day}`
+}
+
+const missLogRow = (state, entry) => {
+  const drill = DRILL_BY_KEY[entry.drillKey]
+
+  const item = document.createElement('details')
+  item.className = 'faq-item'
+
+  const summary = document.createElement('summary')
+  const handText = entry.hand === null ? 'サイズ' : entry.hand
+  summary.textContent = `${fmtMissDate(entry.d)} · ${drill.label} · ${handText} — ${actionLabelOf(drill, entry.chosen)} と答えた (正解 ${actionLabelOf(drill, entry.correct)})`
+  item.appendChild(summary)
+
+  // 開いたときの中身は、間違えた時のコーチと同じ「なぜ」+「覚え方」(用語リンク付き)
+  const advice = coachFor(drill, entry.hand, state.easyMode)
+
+  const why = document.createElement('p')
+  why.className = 'faq-answer'
+  const whyLabel = document.createElement('strong')
+  whyLabel.textContent = 'なぜ: '
+  why.appendChild(whyLabel)
+  const whyText = document.createElement('span')
+  renderTermText(whyText, advice.why)
+  why.appendChild(whyText)
+  item.appendChild(why)
+
+  const tip = document.createElement('p')
+  tip.className = 'mistake-fix'
+  const tipLabel = document.createElement('strong')
+  tipLabel.textContent = '覚え方: '
+  tip.appendChild(tipLabel)
+  const tipText = document.createElement('span')
+  renderTermText(tipText, advice.tip)
+  tip.appendChild(tipText)
+  item.appendChild(tip)
+
+  return item
+}
+
+const renderMissLog = (state) => {
+  el.missLogCount.textContent = String(state.missLog.length)
+  el.missLogBody.innerHTML = ''
+
+  if (state.missLog.length === 0) {
+    const empty = document.createElement('p')
+    empty.className = 'glossary-empty'
+    empty.textContent = 'まだミスがありません。間違えるとここに残ります。'
+    el.missLogBody.appendChild(empty)
+    el.missLogNote.hidden = true
+    return
+  }
+
+  const entries = [...state.missLog].reverse().slice(0, MISS_LOG_SHOWN)
+  for (const entry of entries) el.missLogBody.appendChild(missLogRow(state, entry))
+
+  el.missLogNote.hidden = state.missLog.length <= MISS_LOG_SHOWN
 }
 
 const renderLeaks = (state) => {
@@ -1435,6 +1506,7 @@ const renderDashboard = (state, onFocus) => {
   renderSpark(state)
   renderLeaks(state)
   renderWeakHands(state, onFocus)
+  renderMissLog(state)
   renderSound(state)
   renderEasy(state)
   renderStreak(state)

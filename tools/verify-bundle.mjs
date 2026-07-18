@@ -145,6 +145,7 @@ for (const file of ['dist/trainer.html', 'dist/artifact.html']) {
   check(run('el.nashSbGrid.children.length') === 169, `${file}: ソルバーのグリッドが描画されている`)
   check(run(`findTermSpans('ドミネートに注意').length`) === 1, `${file}: 用語リンクの検出が動く`)
   check(run(`GLOSSARY.some((g) => g.terms.some((t) => t.term === 'ソルバー'))`), `${file}: 用語集にソルバーとヘッズアップが入っている`)
+  check(run(`Array.isArray(freshState().missLog) && el.missLogBody.children.length > 0`), `${file}: ミス履歴カードが初期化されている`)
   check(run('el.dailyList.children.length') === 4, `${file}: メニューが描画されている`)
   check(run('el.glossaryBody.children.length') > 0, `${file}: 用語解説が描画されている`)
 }
