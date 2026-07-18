@@ -1213,6 +1213,21 @@ const helpHtml = readFileSync(join(ROOT, 'index.html'), 'utf8')
 check(helpHtml.includes('ヘッズアップ — 最後の2人になったら'), '解説: ヘッズアップの節がある')
 check(helpHtml.includes('トーナメントで残り2人になったら、まさにこの状況'), 'ソルバーカード: 残り2人への案内がある')
 check(run(`FAQ.some((e) => e.q.includes('ヘッズアップ'))`), 'FAQ: ヘッズアップの項目がある')
+
+// ---- リンプ (成立する場面としない場面) ----
+
+check(
+  run(`FAQ.some((e) => e.q.includes('リンプ') && e.a.includes('ブラインド戦') && e.a.includes('欠番'))`),
+  'FAQ: リンプが成立する場面の項目があり、BB vs SB 欠番と整合している',
+)
+check(
+  run(`GLOSSARY.some((g) => g.terms.some((t) => t.term.includes('リンプ') && t.def.includes('リンプレイズ') && t.def.includes('ヘッズアップ')))`),
+  '用語集: リンプに成立場面とリンプレイズの説明がある',
+)
+check(
+  run(`GLOSSARY_ALIASES.some((a) => a.alias === 'リンプレイズ')`),
+  '用語リンク: リンプレイズが別名として引ける',
+)
 check(run(`MANTRAS.some((m) => m.phrase.includes('残り2人'))`), '合言葉: 残り2人の項目がある')
 check(
   run(`GLOSSARY.some((g) => g.terms.some((t) => t.term === 'ヘッズアップ' && t.def.includes('ICM')))`),
