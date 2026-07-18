@@ -22,7 +22,18 @@ const makeElement = () => ({
   attributes: {},
   style: {},
   dataset: {},
-  textContent: '',
+  _text: '',
+  // 実 DOM と同じく、代入は子を消し、参照は子のテキストも含めて返す
+  set textContent(value) {
+    this._text = String(value)
+    this.children = []
+  },
+  get textContent() {
+    const childText = this.children
+      .map((child) => (child && typeof child === 'object' ? (child.text !== undefined ? child.text : child.textContent || '') : ''))
+      .join('')
+    return this._text + childText
+  },
   hidden: false,
   disabled: false,
   offsetWidth: 0,
@@ -1027,6 +1038,84 @@ check(
   `${openOdds.two.toFixed(1)} / ${openOdds.half.toFixed(1)} / ${openOdds.three.toFixed(1)}%`,
 )
 check(run(`FAQ.some((e) => e.q.includes('2bb') && e.a.includes('22%') && e.a.includes('31%'))`), 'FAQ: オープンサイズ比較の項目がある')
+
+// ---- ウィキ風の用語リンク ----
+
+// 別名の分解: 複合見出し 'IP / OOP' や括弧 'bb (ビッグブラインド)' から引ける
+check(
+  run(`GLOSSARY_ALIASES.some((a) => a.alias === 'OOP') && GLOSSARY_ALIASES.some((a) => a.alias === 'ビッグブラインド')`),
+  '用語リンク: 複合見出しと括弧が別名に分解される',
+)
+
+// 検出: 長い語が勝つ / 1用語1回 / 位置順
+const termSpans = run(`findTermSpans('ポットオッズが良いのでコールできる。ドミネートには注意。')`)
+check(
+  termSpans.some((s) => s.alias === 'ポットオッズ') && !termSpans.some((s) => s.alias === 'ポット'),
+  '用語リンク: 「ポットオッズ」が「ポット」に食われない',
+  JSON.stringify(termSpans.map((s) => s.alias)),
+)
+check(termSpans.some((s) => s.alias === 'ドミネート'), '用語リンク: 複数の用語を検出する')
+check(
+  run(`findTermSpans('ドミネートとドミネートとドミネート').length`) === 1,
+  '用語リンク: 同じ用語は最初の1回だけリンクする',
+)
+check(run(`findTermSpans('この文に専門用語はない。').length`) === 0, '用語リンク: 用語が無ければ空')
+
+// 描画: リンクとテキストが分割され、全体のテキストは元の文と一致する
+const termRender = run(`(() => {
+  const box = document.createElement('div')
+  const text = 'AJo は ドミネート されやすいが、ブロッカー としては優秀。'
+  renderTermText(box, text)
+  return {
+    full: box.textContent,
+    original: text,
+    links: box.children.filter((c) => c.className === 'term-link').map((c) => c.textContent),
+  }
+})()`)
+check(termRender.full === termRender.original, '用語リンク: リンク化してもテキスト全体は変わらない')
+check(
+  termRender.links.includes('ドミネート') && termRender.links.includes('ブロッカー'),
+  '用語リンク: 用語がタップできるリンクになる',
+  termRender.links.join(','),
+)
+
+// 統合: 定石ビューアの答えにリンクが入り、タップすると早見表の用語タブが開く
+const termFlow = run(`(() => {
+  selectReference('CO_BTN')
+  pickReferenceHand('AJo')
+  const links = el.refAnswerWhy.children.filter((c) => c.className === 'term-link').map((c) => c.textContent)
+  openTermInSheet('ポラライズド')
+  const sheet = {
+    open: !el.sheet.hidden,
+    body: el.sheetBody.children.length,
+    activeTab: el.sheetTabs.children.find((b) => b.className.includes('active')).textContent,
+  }
+  closeSheet()
+  pickReferenceHand('AJo')
+  selectReference(DRILLS[0].key)
+  return { links, sheet }
+})()`)
+check(termFlow.links.length > 0, '用語リンク: 定石ビューアの答えの中に用語リンクが入る', termFlow.links.join(','))
+check(
+  termFlow.sheet.open && termFlow.sheet.body > 0 && termFlow.sheet.activeTab === '用語',
+  '用語リンク: タップで早見表の用語タブがその語で開く',
+  JSON.stringify(termFlow.sheet),
+)
+
+// ---- ヘッズアップ (最後の2人) ----
+
+const helpHtml = readFileSync(join(ROOT, 'index.html'), 'utf8')
+check(helpHtml.includes('ヘッズアップ — 最後の2人になったら'), '解説: ヘッズアップの節がある')
+check(helpHtml.includes('トーナメントで残り2人になったら、まさにこの状況'), 'ソルバーカード: 残り2人への案内がある')
+check(run(`FAQ.some((e) => e.q.includes('ヘッズアップ'))`), 'FAQ: ヘッズアップの項目がある')
+check(run(`MANTRAS.some((m) => m.phrase.includes('残り2人'))`), '合言葉: 残り2人の項目がある')
+check(
+  run(`GLOSSARY.some((g) => g.terms.some((t) => t.term === 'ヘッズアップ' && t.def.includes('ICM')))`),
+  '用語集: ヘッズアップ (ICM 消滅込み) がある',
+)
+check(run(`GLOSSARY.some((g) => g.terms.some((t) => t.term === 'ソルバー'))`), '用語集: ソルバーがある')
+check(run(`GLOSSARY.some((g) => g.terms.some((t) => t.term.includes('ナッシュ均衡')))`), '用語集: ナッシュ均衡/搾取可能性がある')
+check(run(`GLOSSARY.some((g) => g.terms.some((t) => t.term === 'ポラライズド'))`), '用語集: ポラライズドがある')
 
 // ---- 対戦マトリクスと GTO 計算 ----
 

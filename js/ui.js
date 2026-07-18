@@ -142,6 +142,34 @@ const el = {
 
 const NS = 'http://www.w3.org/2000/svg'
 
+// ---- 本文の用語リンク (ウィキ風) ----
+// 説明文の中の専門用語をタップできるようにする。タップの先 (早見表の用語タブを開く) は
+// main.js が setTermTapHandler で配線する。
+
+let termTapHandler = null
+const setTermTapHandler = (handler) => {
+  termTapHandler = handler
+}
+
+const renderTermText = (container, text) => {
+  container.textContent = ''
+  let cursor = 0
+
+  for (const span of findTermSpans(text)) {
+    if (span.start > cursor) {
+      container.appendChild(document.createTextNode(text.slice(cursor, span.start)))
+    }
+    const link = document.createElement('button')
+    link.className = 'term-link'
+    link.textContent = span.alias
+    link.addEventListener('click', () => termTapHandler && termTapHandler(span.alias))
+    container.appendChild(link)
+    cursor = span.end
+  }
+
+  if (cursor < text.length) container.appendChild(document.createTextNode(text.slice(cursor)))
+}
+
 const svg = (tag, attrs, text) => {
   const node = document.createElementNS(NS, tag)
   for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value)
@@ -444,8 +472,8 @@ const renderVerdict = (state, question, grade, chosenAction) => {
     el.coach.hidden = true
   } else {
     const advice = coachFor(drill, question.hand, state.easyMode)
-    el.coachWhy.textContent = advice.why
-    el.coachTip.textContent = advice.tip
+    renderTermText(el.coachWhy, advice.why)
+    renderTermText(el.coachTip, advice.tip)
     el.coach.hidden = false
   }
 
@@ -836,7 +864,7 @@ const renderEquity = (pickedHand, onPick) => {
 
   el.equityPrompt.hidden = pickedHand !== null
   el.equityAnswer.hidden = pickedHand === null
-  el.equityAnswer.textContent = pickedHand ? equityAnswerText(pickedHand) : ''
+  renderTermText(el.equityAnswer, pickedHand ? equityAnswerText(pickedHand) : '')
 }
 
 // ---- 早見表 (右下のボタンからいつでも開けるシート) ----
@@ -1087,8 +1115,8 @@ const renderRefAnswer = (drill, hand, isEasy) => {
   el.refAnswer.className = `ref-answer ${ACTION_COLORS[action]}-tint`
 
   el.refAnswerHead.textContent = `${drill.label} で ${hand} は ${ACTION_LABELS[action]}`
-  el.refAnswerWhy.textContent = advice.why
-  el.refAnswerTip.textContent = advice.tip
+  renderTermText(el.refAnswerWhy, advice.why)
+  renderTermText(el.refAnswerTip, advice.tip)
 }
 
 // 自分がミスしたことのある手 (このドリル限定)。重ね書き表示用。
@@ -1255,7 +1283,7 @@ const renderCalc = (view, onSelectRange, onPick) => {
 
   el.calcPrompt.hidden = view.hand !== null
   el.calcAnswer.hidden = view.hand === null
-  el.calcAnswer.textContent = view.hand ? calcAnswerText(view.rangeId, view.hand) : ''
+  renderTermText(el.calcAnswer, view.hand ? calcAnswerText(view.rangeId, view.hand) : '')
 }
 
 // ---- プッシュ/フォールド ソルバー ----
@@ -1337,7 +1365,7 @@ const renderBluff = (state, view, handlers) => {
   if (view.chosen !== null) {
     const advice = coachFor(drill, view.hand, state.easyMode)
     el.bluffResult.hidden = false
-    el.bluffResult.textContent = `${ROLE_HEADLINES[correctRole]} ${advice.why}`
+    renderTermText(el.bluffResult, `${ROLE_HEADLINES[correctRole]} ${advice.why}`)
     el.bluffNext.hidden = false
   } else {
     el.bluffResult.hidden = true

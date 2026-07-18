@@ -175,6 +175,15 @@ function setSheetQuery(query) {
   drawSheet()
 }
 
+// 本文中の用語タップ → 早見表の用語タブをその語で開く (ウィキ風リンクの飛び先)
+function openTermInSheet(alias) {
+  sheetPane = 'glossary'
+  sheetQuery = alias
+  el.sheet.hidden = false
+  drawSheet()
+}
+setTermTapHandler(openTermInSheet)
+
 el.sheetFab.addEventListener('click', () => openSheet())
 el.sheetClose.addEventListener('click', closeSheet)
 // パネルの外 (背景) をタップしても閉じる

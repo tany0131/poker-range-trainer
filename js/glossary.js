@@ -133,6 +133,22 @@ const GLOSSARY = [
         def: 'Game Theory Optimal。相手がどう打っても搾取されない戦略。「相手の弱点を突いて勝つ」戦略 (エクスプロイト) の対義。まず GTO を土台にして、相手が明らかにおかしい時だけ外す、が普通の順番。',
       },
       {
+        term: 'ソルバー',
+        def: '状況を入力すると理論上の正解 (均衡) を計算するプログラム。仮想のプレイヤー2人に「相手の戦略への最善応答」を取り合わせ続け、調整が収まった先が均衡。このアプリのプッシュ/フォールドのカードは本物のソルバーで、スタックを選ぶたびに端末がその場で解いている。PioSolver 等の市販品との違いは解くゲームの大きさだけ (フロップ以降を含む巨大なゲームは何時間もかかるので、GTO Wizard は計算済みの解を見せるサービスになっている)。',
+      },
+      {
+        term: 'ナッシュ均衡 / 搾取可能性',
+        def: 'ナッシュ均衡 = お互いが最善を尽くし合った結果、どちらも戦略を変えても得しなくなった状態。GTO の数学的な正体。搾取可能性 = その戦略に対して相手が完璧に対応したとき、どれだけ上乗せで取られるか。0 に近いほど均衡に近い。ソルバーのカードに出ている「搾取可能性 0.003bb」がこれで、解の品質保証になっている。',
+      },
+      {
+        term: 'ポラライズド',
+        def: 'レンジを「強い手 (バリュー) と弱い手 (ブラフ) の両端」で組み、中間をコールに残す形。3ベットレンジの基本形。AQo がコールで格下の AJo が 3ベット、という逆転が起きるのはこのため — 強さの順に上から取っているのではなく、役割で振り分けている。',
+      },
+      {
+        term: 'ヘッズアップ',
+        def: '残り2人での対戦。席のルールが変わり、ボタンが SB を兼ねて「プリフロップは先・フロップ以降は後 (有利)」になる。相手が1人だけなので手の価値が丸ごと繰り上がり、BTN は7〜8割の手でレイズするのが目安。トーナメントで残り2人になったら2位賞金は確定しているので ICM の補正も消え、チップの期待値どおりに打ってよい — 浅くなったらソルバーのカードの均衡がそのまま正解になる。',
+      },
+      {
         term: '混合戦略',
         def: 'ソルバーが「60% コール / 40% 3ベット」のように確率で振る手。このアプリは 1ハンド1答にするため頻度の高い方に丸めてある。そのぶん境界の細部は本来より少し堅い。',
       },
@@ -165,6 +181,46 @@ const GLOSSARY = [
 ]
 
 const GLOSSARY_TERM_COUNT = GLOSSARY.reduce((sum, group) => sum + group.terms.length, 0)
+
+// ---- 本文の中の用語検出 (ウィキ風のタップリンク用) ----
+
+// 別名 → 用語エントリ。'IP / OOP' のような複合見出しを分解し、括弧の中身も別名にする。
+const GLOSSARY_ALIASES = (() => {
+  const list = []
+  for (const group of GLOSSARY) {
+    for (const entry of group.terms) {
+      const names = new Set()
+      const stripped = entry.term.replace(/\((.*?)\)/g, (match, inner) => {
+        names.add(inner.trim())
+        return ' '
+      })
+      for (const part of stripped.split('/')) names.add(part.trim())
+      for (const alias of names) {
+        if (alias.length >= 2 && !alias.includes('この')) list.push({ alias, entry })
+      }
+    }
+  }
+  // 長い別名から照合する (「ポットオッズ」を「ポット」に食わせない)
+  return list.sort((a, b) => b.alias.length - a.alias.length)
+})()
+
+// text の中で用語が最初に出てくる場所を返す。重なりは長い方が勝ち、1 用語につき 1 回だけ。
+const findTermSpans = (text) => {
+  const spans = []
+  const linked = new Set()
+  const overlaps = (start, end) => spans.some((span) => start < span.end && end > span.start)
+
+  for (const { alias, entry } of GLOSSARY_ALIASES) {
+    if (linked.has(entry.term)) continue
+    const start = text.indexOf(alias)
+    if (start === -1) continue
+    const end = start + alias.length
+    if (overlaps(start, end)) continue
+    linked.add(entry.term)
+    spans.push({ start, end, alias, term: entry.term })
+  }
+  return spans.sort((a, b) => a.start - b.start)
+}
 
 // 検索。用語名と定義の両方を見る (「あの説明どこだっけ」から引けるように)。
 const searchGlossary = (query) => {
