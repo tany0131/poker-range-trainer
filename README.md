@@ -27,6 +27,26 @@
 - **基準** = その状況で降りるべき手の割合。ここを超えて初めて学習が起きている
 - 上端に貼り付くジャンプバーで、縦に長い1ページのどこへでも1タップで飛べる (畳んだセクションは開いてから飛ぶ)
 
+## スマホで使う
+
+ホーム画面に追加するとアドレスバーが消え、**一度開いたあとはオフラインでも動く** (PWA)。
+
+- **iOS (Safari)**: 共有ボタン → 「ホーム画面に追加」
+- **Android (Chrome)**: メニュー → 「アプリをインストール」(または出てくるバナー)
+
+新しい版が配られると、下に「新しい版がある — 再読み込みで反映」が一行出る。押せば入れ替わる。
+
+## 成績の引っ越し
+
+成績は**ブラウザの中に URL ごとに**保存されるので、別の URL・別の端末には自動では付いてこない。
+成績カードの下にある 2 つのボタンで運ぶ。
+
+1. 元の端末で **「成績を書き出す」** → JSON がクリップボードに入る
+   (コピーできない環境なら、出てきた枠の中身を選んでコピー)
+2. 移動先で **「成績を読み込む」** → 貼り付けて「読み込む」→ 確認をもう一度押す
+
+読み込むと移動先の記録は**上書き**される。読めない JSON は弾かれるだけで、何も変わらない。
+
 ## レンジの出どころ
 
 - **RFI**: 公開されている 6-max 100bb のチャート。combos 比が公表帯 (UTG 15-17 / HJ 19-22 /
@@ -41,9 +61,12 @@
 
 ```sh
 node tools/verify.mjs        # 検証 (DOM を stub して本体を実行。100+ 項目)
-node tools/build.mjs         # 単一 HTML に畳む → dist/
-node tools/verify-bundle.mjs # 畳んだ後のバンドルを検証
+node tools/build.mjs         # 単一 HTML に畳む → dist/ (PWA 一式もここで揃う)
+node tools/verify-bundle.mjs # 畳んだ後のバンドルと dist の PWA を検証
 ```
+
+アイコンを描き直したときだけ `node tools/gen-icons.mjs` (macOS 専用。`icons/icon.svg` から
+PNG を焼く)。焼いた PNG はコミットするので、CI は焼かずに配る。
 
 レンジを触ったら必ず `verify.mjs` を通すこと。詳細は [CLAUDE.md](./CLAUDE.md)。
 
@@ -65,6 +88,9 @@ js/ui-learn.js      読んで覚えるカード (育ち方 / 今日の特訓 / �
 js/ui-sheet.js      早見表シート
 js/ui-tools.js      練習ツール (定石ビューア / 穴埋め / 電卓 / ソルバー / 役割クイズ)
 js/main.js      配線
+manifest.webmanifest  PWA (ホーム画面に追加したときの名前・色・アイコン)
+sw.js           オフライン用の Service Worker (build.mjs が build id を差し込む)
+icons/          icon.svg が正本。PNG は tools/gen-icons.mjs が焼く
 tools/          検証とビルド
 ```
 

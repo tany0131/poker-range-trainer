@@ -4,6 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>プリフロップ レンジトレーナー (6-max)</title>
+
+    <!-- PWA (ホーム画面に追加してオフラインで使う)。
+         ここは <head> なので、Artifact 版 (body だけを取り出す) には最初から入らない。 -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#12151a" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="レンジ" />
+
     <link rel="stylesheet" href="style.css" />
   </head>
 
@@ -993,6 +1003,11 @@
       </div>
     </div>
 
+    <div class="sw-toast" id="sw-toast" hidden>
+      <span>新しい版がある — 再読み込みで反映</span>
+      <button id="sw-reload">再読み込み</button>
+    </div>
+
     <script src="js/ranges.js"></script>
     <script src="js/spots.js"></script>
     <script src="js/coach.js"></script>
@@ -1015,5 +1030,33 @@
     <script src="js/ui-sheet.js"></script>
     <script src="js/ui-tools.js"></script>
     <script src="js/main.js"></script>
+
+    <!-- PWA の登録。http(s) で開かれたときだけ動く。
+         file:// で直接開いたときと、Artifact (クロスオリジンの iframe) では何もしない
+         (Artifact 版ではこのブロックごと tools/build.mjs が落とす)。
+         data-sw の属性を付けているのは、build.mjs / verify-bundle.mjs が
+         「属性なしの script タグ = アプリ本体」で拾うため。ここに素のタグ名を
+         書くと、その文字列ごと拾われて壊れる (実際に一度踏んだ)。 -->
+    <script data-sw>
+      (function () {
+        if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+        if (!location.protocol.startsWith('http')) return
+
+        // 起動時に既に誰かが操縦していたら、以降の交代は「新しい版が来た」を意味する
+        var hadController = !!navigator.serviceWorker.controller
+        var toast = document.getElementById('sw-toast')
+        var reload = document.getElementById('sw-reload')
+
+        if (reload) reload.addEventListener('click', function () { location.reload() })
+
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (hadController && toast) toast.hidden = false
+        })
+
+        navigator.serviceWorker.register('./sw.js').catch(function () {
+          // 登録できなくてもアプリは動く (オフラインにならないだけ)
+        })
+      })()
+    </script>
   </body>
 </html>

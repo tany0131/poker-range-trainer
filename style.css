@@ -866,6 +866,37 @@ tbody tr:last-child td {
   color: var(--muted);
 }
 
+/* ---- 新しい版のお知らせ (Service Worker) ---- */
+
+.sw-toast {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  /* 右下の早見表ボタン (.sheet-fab) の上に出す。重ねると再読み込みが押せない */
+  bottom: calc(68px + env(safe-area-inset-bottom));
+  z-index: 41;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.sw-toast button {
+  flex: none;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--accent);
+}
+
 /* ---- 成績の引っ越し (書き出し / 読み込み) ---- */
 
 .transfer {

@@ -2,7 +2,7 @@
 // js/*.js を実際に vm で読み込むので、ReferenceError や配線ミスもここで落ちる。
 //   node tools/verify.mjs
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
@@ -2965,6 +2965,78 @@ check(/\.jump\s*\{[^}]*overflow-x:\s*auto/.test(styleCss), 'ジャンプバー�
 check(
   (elements.get('jump')._listeners.click || []).length === 1,
   'ジャンプバーにタップの配線がある (畳んだセクションを開いてから飛ぶ)',
+)
+
+// ---- PWA (ホーム画面に追加してオフラインで使う) ----
+//
+// ソース側の配線を見る。畳んだあとの dist は tools/verify-bundle.mjs が別に見る。
+
+check(
+  indexHtml.includes('<link rel="manifest" href="manifest.webmanifest" />'),
+  'PWA: index.html が manifest を参照している',
+)
+check(
+  indexHtml.includes('<meta name="theme-color" content="#12151a" />'),
+  'PWA: theme-color がアプリの背景色と同じ',
+)
+check(
+  indexHtml.includes('rel="apple-touch-icon"') &&
+    indexHtml.includes('name="apple-mobile-web-app-capable"') &&
+    indexHtml.includes('name="apple-mobile-web-app-status-bar-style"'),
+  'PWA: iOS 用の meta が揃っている',
+)
+
+// 登録ブロックは属性付きの <script data-sw> で書く。
+// 属性なしの <script> にすると build.mjs / verify-bundle.mjs が「アプリ本体」と取り違える。
+const swBlock = (indexHtml.match(/<script data-sw>[\s\S]*?<\/script>/) || [''])[0]
+check(swBlock.length > 0, 'PWA: 登録ブロックが <script data-sw> で書かれている')
+check(
+  swBlock.includes(`'serviceWorker' in navigator`) && swBlock.includes(`location.protocol.startsWith('http')`),
+  'PWA: http(s) のときだけ登録する (file:// では何もしない)',
+)
+check(
+  swBlock.includes(`navigator.serviceWorker.register('./sw.js')`) && swBlock.includes('.catch('),
+  'PWA: 登録は相対パスで、失敗しても投げない',
+)
+check(
+  swBlock.includes('controllerchange') && swBlock.includes('hadController'),
+  'PWA: 版が入れ替わったときだけお知らせを出す (初回インストールでは出さない)',
+)
+check(
+  htmlIdSet.has('sw-toast') && htmlIdSet.has('sw-reload') && indexHtml.includes('新しい版がある'),
+  'PWA: 新しい版のお知らせと再読み込みボタンがある',
+)
+
+const swSource = readFileSync(join(ROOT, 'sw.js'), 'utf8')
+check(swSource.includes(`const BUILD_ID = '__BUILD_ID__'`), 'PWA: sw.js の build id は build.mjs が差し込む')
+check(
+  swSource.includes('self.skipWaiting()') && swSource.includes('self.clients.claim()'),
+  'PWA: sw.js は skipWaiting / clients.claim する',
+)
+check(
+  swSource.includes('caches.delete(key)') && swSource.includes(`key !== CACHE`),
+  'PWA: sw.js は activate で古いキャッシュを捨てる',
+)
+check(
+  swSource.includes(`request.method !== 'GET'`) && swSource.includes('self.location.origin'),
+  'PWA: sw.js が触るのは同一オリジンの GET だけ',
+)
+
+const manifestSource = JSON.parse(readFileSync(join(ROOT, 'manifest.webmanifest'), 'utf8'))
+check(
+  manifestSource.display === 'standalone' && manifestSource.start_url === './' && manifestSource.scope === './',
+  'PWA: manifest は standalone で、start_url / scope が相対',
+)
+check(
+  manifestSource.short_name === 'レンジ' && manifestSource.name.includes('レンジトレーナー'),
+  'PWA: manifest の名前',
+)
+const iconSources = manifestSource.icons.map((icon) => icon.src)
+const missingIconSources = iconSources.filter((src) => !existsSync(join(ROOT, src)))
+check(missingIconSources.length === 0, 'PWA: manifest のアイコンが実在する', missingIconSources.join(','))
+check(
+  manifestSource.icons.some((icon) => (icon.purpose || '').includes('maskable')),
+  'PWA: maskable のアイコンがある',
 )
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`)
