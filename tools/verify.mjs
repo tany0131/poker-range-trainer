@@ -525,6 +525,51 @@ check(
   '消えたドリルを含む古い保存を安全に読み直す',
 )
 
+check(
+  run(`(() => {
+    // 新しいビルドが書いた保存 (version が現行より上) を古いビルドで開いても成績を捨てない
+    localStorage.setItem('poker-range-trainer/v3', JSON.stringify({
+      version: 99, byDrill: { RFI_UTG: { asked: 7, correct: 5 } }, byCategory: {},
+      streak: { current: 1, best: 4 }, history: [1, 1, 0], reviewQueue: [], soundOn: true, mode: 'rfi',
+    }))
+    const s = loadState()
+    return s.byDrill.RFI_UTG.asked === 7 && s.streak.best === 4 && s.history.length === 3
+  })()`),
+  'version が現行より新しい保存でも成績を捨てない',
+)
+
+check(
+  run(`(() => {
+    // 移行の道がない古い版 (v2 以前) だけが初期化される
+    localStorage.setItem('poker-range-trainer/v3', JSON.stringify({ version: 2, byDrill: { RFI_UTG: { asked: 7, correct: 5 } } }))
+    const s = loadState()
+    return s.version === 3 && s.byDrill.RFI_UTG.asked === 0
+  })()`),
+  '移行関数のない古い版だけが初期化される',
+)
+
+check(
+  run(`(() => {
+    // 移行チェーン: v2 → v3 (現行) の関数を足すと段階的に持ち上がる (足した関数は消しておく)
+    STATE_MIGRATIONS[3] = (s) => ({ ...s, version: 3, lifted: true })
+    const lifted = migrateState({ version: 2, byDrill: {} })
+    delete STATE_MIGRATIONS[3]
+    const noPath = migrateState({ version: 1 })
+    return lifted.version === 3 && lifted.lifted === true && noPath === null && migrateState(null) === null
+  })()`),
+  'migrateState は移行関数を順に適用し、道がなければ null を返す',
+)
+
+check(
+  run(`(() => {
+    const yes = ['INPUT', 'TEXTAREA', 'SELECT', 'input'].every((tagName) => isTypingTarget({ tagName }))
+    const editable = isTypingTarget({ tagName: 'DIV', isContentEditable: true })
+    const no = [{ tagName: 'BUTTON' }, { tagName: 'BODY' }, null, {}].some((t) => isTypingTarget(t))
+    return yes && editable && !no
+  })()`),
+  '入力欄 (input / textarea / contenteditable) にフォーカス中はホットキーを拾わない',
+)
+
 // ---- 狙い撃ち (focus) ----
 
 // focus 中はそのスポットしか出ない

@@ -1,6 +1,7 @@
 // 成績の保持・永続化・弱点分析。ドリル (状況) 単位で集計する。
 
 const STORAGE_KEY = 'poker-range-trainer/v3'
+const STATE_VERSION = 3
 const DAILY_LOG_CAP = 400
 const MISS_LOG_CAP = 200
 const TARGET_RATE = 0.95
@@ -61,7 +62,7 @@ const emptyCategoryStats = () =>
   )
 
 const freshState = () => ({
-  version: 3,
+  version: STATE_VERSION,
   byDrill: emptyDrillStats(),
   byCategory: emptyCategoryStats(),
   streak: { current: 0, best: 0 },
@@ -140,15 +141,35 @@ const reconcile = (state) => {
   return next
 }
 
+// スキーマを上げるときはここに version → 次の version の変換を足す (捨てない)。
+// 例: 4: (s) => ({ ...s, version: 4, newField: [] })
+// version を上げたら STATE_VERSION と freshState の version も合わせる。
+const STATE_MIGRATIONS = {}
+
+// 保存データを現行スキーマまで段階的に持ち上げる。
+// - 現行より古い: 移行関数を順に適用。途中の版が欠けていたら (移行不能) null
+// - 現行より新しい: 新しいビルドが書いたもの。捨てずにそのまま返し reconcile に委ねる
+// 成績を初期化するのは「移行の道がない」ときだけ。version 違いを理由に消してはいけない。
+const migrateState = (parsed) => {
+  if (!parsed || typeof parsed !== 'object' || typeof parsed.version !== 'number') return null
+  let state = parsed
+  while (state.version < STATE_VERSION) {
+    const step = STATE_MIGRATIONS[state.version + 1]
+    if (!step) return null
+    state = step(state)
+  }
+  return state
+}
+
 const loadState = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return freshState()
 
-    const parsed = JSON.parse(raw)
-    if (!parsed || parsed.version !== 3) return freshState()
+    const migrated = migrateState(JSON.parse(raw))
+    if (!migrated) return freshState()
 
-    return reconcile(parsed)
+    return reconcile(migrated)
   } catch {
     return freshState()
   }

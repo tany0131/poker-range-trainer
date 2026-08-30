@@ -28,24 +28,22 @@ function answer(chosenAction) {
 
   const grade = gradeAnswer(current, chosenAction)
 
-  commit(
-    recordAnswer(state, {
-      drillKey: current.drillKey,
-      hand: current.hand,
-      chosenAction,
-      correctAction: grade.correctAction,
-      isCorrect: grade.isCorrect,
-    }),
-  )
+  const recorded = recordAnswer(state, {
+    drillKey: current.drillKey,
+    hand: current.hand,
+    chosenAction,
+    correctAction: grade.correctAction,
+    isCorrect: grade.isCorrect,
+  })
+
+  // 記録と連続日数の更新を 1 回の保存にまとめる (完走判定は記録後の今日のログから作り直す)
+  commit(bumpDailyStreak(recorded))
 
   if (state.soundOn) {
     const hitStreak =
       grade.isCorrect && state.streak.current > 0 && state.streak.current % STREAK_SOUND_AT === 0
     playTone(grade.isCorrect ? (hitStreak ? 'streak' : 'correct') : 'wrong')
   }
-
-  // メニューを完走した瞬間に連続日数を伸ばす (完走判定は今日のログから毎回作り直す)
-  commit(bumpDailyStreak(state))
 
   renderVerdict(state, current, grade, chosenAction)
   renderDashboard(state, selectFocus)
@@ -122,8 +120,17 @@ el.easy.addEventListener('click', () => {
   }
 })
 
+// 文字を打つ場所 (用語検索・FAQ 検索・早見表の検索) にフォーカスがある間はホットキーを拾わない。
+// ここを抜くと「fold」と検索しただけで f = フォールドが回答として記録される。
+const isTypingTarget = (target) => {
+  if (!target || typeof target.tagName !== 'string') return false
+  const tag = target.tagName.toUpperCase()
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable === true
+}
+
 document.addEventListener('keydown', (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey) return
+  if (isTypingTarget(event.target)) return
   const key = event.key.toLowerCase()
 
   if (!answered && current) {
