@@ -1724,6 +1724,21 @@ check(huUi.chartHidden === false && huUi.gridCells === 169, 'ヘッズアップ�
 check(huUi.huRows === 6, '成績表にヘッズアップの 6 行が出る', String(huUi.huRows))
 check(huUi.modeHint.includes('ソルバー'), 'ヘッズアップモードの説明がソルバー由来だと言っている', huUi.modeHint.slice(0, 40))
 
+// 成績表の行タップ (狙い撃ち) は、モードごと連れて行かないと出題が空になる
+const huFocus = run(`(() => {
+  commit({ ...state, mode: 'rfi', focus: null })
+  selectFocus('HU_PUSH_15')
+  const after = { mode: state.mode, focus: state.focus, drawn: current.drillKey }
+  selectFocus('HU_PUSH_15') // もう一度押して解除
+  return { after, cleared: state.focus }
+})()`)
+check(
+  huFocus.after.mode === 'hu' && huFocus.after.focus === 'HU_PUSH_15' && huFocus.after.drawn === 'HU_PUSH_15',
+  'ヘッズアップの行を狙い撃つとモードが追随する',
+  JSON.stringify(huFocus.after),
+)
+check(huFocus.cleared === null, 'ヘッズアップの狙い撃ちはもう一度押すと解除される')
+
 run(`commit({ ...state, focus: null, mode: 'rfi' }); renderModes(state, selectMode); renderDashboard(state, selectFocus); advance()`)
 
 // ---- オールインの考え方 (解説で言い切っている数字の検算) ----
