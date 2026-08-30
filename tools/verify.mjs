@@ -1516,6 +1516,216 @@ check(
   nashUi.stats.slice(0, 60),
 )
 
+// ---- ヘッズアップ (浅いスタックの押し引き) ----
+//
+// 焼いたレンジ (js/hu-ranges.js) は、その場で解いたソルバーと一致していなければならない。
+// equity.js / matchups.js と同じクロスチェックの考え方で、生成物の劣化をここで捕まえる。
+
+const huCross = run(`(() => {
+  const bad = []
+  for (const stackBb of HU_STACKS) {
+    const fresh = solvePushFold(stackBb)
+    const live = { push: fresh.jam, call: fresh.call }
+    for (const key of ['push', 'call']) {
+      for (const hand of UNIQUE_HANDS) {
+        const stored = HU_RANGES[stackBb][key][hand]
+        if (typeof stored !== 'number' || stored < 0 || stored > 1) bad.push(stackBb + ':' + key + ':' + hand + ':範囲外')
+        else if (Math.abs(stored - live[key][hand]) > 0.0001) bad.push(stackBb + ':' + key + ':' + hand + ':値ズレ')
+        else if ((stored >= 0.5) !== (live[key][hand] >= 0.5)) bad.push(stackBb + ':' + key + ':' + hand + ':丸めズレ')
+      }
+    }
+  }
+  return bad
+})()`)
+check(
+  huCross.length === 0,
+  'ヘッズアップ: 焼いたレンジがその場のソルバーと一致する (頻度も丸めも)',
+  huCross.slice(0, 5).join(','),
+)
+
+const huPct = run(`HU_STACKS.map((stackBb) => ({
+  stackBb,
+  push: pctOf(HU_SETS[stackBb].push),
+  call: pctOf(HU_SETS[stackBb].call),
+}))`)
+
+// 公知のナッシュ解: 10bb の SB ジャムは ~58%
+const hu10 = huPct.find((row) => row.stackBb === 10)
+check(
+  hu10.push >= 52 && hu10.push <= 64,
+  `ヘッズアップ 10bb: 押すレンジ ${hu10.push.toFixed(1)}% (公知 ~58%)`,
+)
+for (const row of huPct) {
+  check(
+    row.call < row.push,
+    `ヘッズアップ ${row.stackBb}bb: 受ける側 ${row.call.toFixed(1)}% は押す側 ${row.push.toFixed(1)}% より狭い`,
+  )
+}
+check(
+  huPct[0].push >= huPct[1].push && huPct[1].push >= huPct[2].push,
+  'ヘッズアップ: 浅いほど押すレンジが広い',
+  huPct.map((r) => `${r.stackBb}bb=${r.push.toFixed(1)}%`).join(' ≥ '),
+)
+
+const huAnchors = run(`(() => {
+  const bad = []
+  for (const stackBb of HU_STACKS) {
+    for (const hand of ['AA', 'KK']) {
+      if (DRILL_BY_KEY['HU_PUSH_' + stackBb].answerFor(hand) !== 'jam') bad.push(stackBb + ':push:' + hand)
+      if (DRILL_BY_KEY['HU_CALL_' + stackBb].answerFor(hand) !== 'call') bad.push(stackBb + ':call:' + hand)
+    }
+    if (DRILL_BY_KEY['HU_PUSH_' + stackBb].answerFor('72o') !== 'fold') bad.push(stackBb + ':push:72o')
+    if (DRILL_BY_KEY['HU_CALL_' + stackBb].answerFor('72o') !== 'fold') bad.push(stackBb + ':call:72o')
+  }
+  return bad
+})()`)
+check(huAnchors.length === 0, 'ヘッズアップ: AA / KK は全スタックで押す & 受ける、72o は両席で降りる', huAnchors.join(','))
+
+// ---- ヘッズアップ: ドリルの形 ----
+
+const huDrills = run(`(() => {
+  const keys = HU_DRILLS.map((d) => d.key)
+  const missing = keys.filter((k) => !DRILL_BY_KEY[k] || !ALL_DRILLS.some((d) => d.key === k))
+  const bad = []
+
+  for (const drill of HU_DRILLS) {
+    const allowed = new Set(drill.actions.map((a) => a.id))
+    const setKey = drill.seat === 'sb' ? 'jam' : 'call'
+    for (const hand of UNIQUE_HANDS) {
+      const answer = drill.answerFor(hand)
+      if (!allowed.has(answer)) bad.push(drill.key + ':' + hand + ':選べない action')
+      // answerFor と sets が一致する (表と出題の答えがずれない)
+      if ((answer === setKey) !== drill.sets[setKey].has(hand)) bad.push(drill.key + ':' + hand + ':sets 不一致')
+      const freq = drill.freqOf(hand)
+      if (!(freq >= 0 && freq <= 1)) bad.push(drill.key + ':' + hand + ':頻度が 0..1 でない')
+    }
+    const foldCombos = UNIQUE_HANDS
+      .filter((h) => drill.answerFor(h) === 'fold')
+      .reduce((sum, h) => sum + combosOf(h), 0)
+    const pct = (foldCombos / TOTAL_COMBOS) * 100
+    if (Math.abs(pct - drill.foldBaseline) > 0.01) bad.push(drill.key + ':foldBaseline')
+    if (drill.type !== 'hu') bad.push(drill.key + ':type')
+  }
+
+  return { keys, missing, bad }
+})()`)
+check(huDrills.keys.length === 6, 'ヘッズアップ: ドリルは 6 つ (押す/受ける × 3 スタック)', huDrills.keys.join(','))
+check(huDrills.missing.length === 0, 'ヘッズアップ: 全ドリルが ALL_DRILLS / DRILL_BY_KEY に載っている', huDrills.missing.join(','))
+check(huDrills.bad.length === 0, 'ヘッズアップ: answerFor / sets / foldBaseline が整合', huDrills.bad.slice(0, 5).join(','))
+
+// モードの担当範囲。ミックスは RFI + 3ベットだけ (説明文がそう書いてある) なので混ぜない。
+const huModeDraw = run(`(() => {
+  const hu = new Set()
+  const mixed = new Set()
+  for (let i = 0; i < 4000; i++) {
+    hu.add(drawFresh('hu').drillKey)
+    mixed.add(drawFresh('mixed').drillKey)
+  }
+  return { hu: [...hu], mixedHu: [...mixed].filter((k) => k.startsWith('HU_')) }
+})()`)
+check(
+  huModeDraw.hu.length === 6 && huModeDraw.hu.every((k) => k.startsWith('HU_')),
+  'ヘッズアップモード: HU の 6 スポットだけを出す',
+  huModeDraw.hu.join(','),
+)
+check(huModeDraw.mixedHu.length === 0, 'ミックスにヘッズアップは混ざらない', huModeDraw.mixedHu.join(','))
+
+// 古い保存 (ヘッズアップが無かった頃) を読んでも、成績の器が生える
+const huReconcile = run(`(() => {
+  const old = reconcile({ version: 3, byDrill: { RFI_UTG: { asked: 9, correct: 8 } } })
+  return {
+    keys: HU_DRILLS.filter((d) => !old.byDrill[d.key]).map((d) => d.key),
+    categories: HU_DRILLS.filter((d) => !old.byCategory[d.key]).map((d) => d.key),
+    kept: old.byDrill.RFI_UTG.asked,
+  }
+})()`)
+check(
+  huReconcile.keys.length === 0 && huReconcile.categories.length === 0 && huReconcile.kept === 9,
+  'ヘッズアップ: 古い保存にも成績の器が生える (前の記録は消えない)',
+  `${huReconcile.keys.join(',')} ${huReconcile.categories.join(',')}`,
+)
+
+// ---- UI: ヘッズアップの出題を実際に通す ----
+
+const huUi = run(`(() => {
+  commit({ ...state, mode: 'hu', focus: 'HU_CALL_10' })
+  renderModes(state, selectMode)
+  advance()
+
+  const seats = el.table.children.filter((c) => (c.attributes.class || '').startsWith('seat'))
+  const stackLabel = el.table.children.find((c) => c.attributes.class === 'felt-stack')
+  const chips = el.table.children.filter((c) => c.attributes.class === 'hu-chip')
+  const feltText = el.table.children.map((c) => c.textContent).join(' | ')
+  const modeHint = el.modeHint.textContent
+
+  const drill = DRILL_BY_KEY[current.drillKey]
+  const correct = drill.answerFor(current.hand)
+  const wrong = drill.actions.map((a) => a.id).find((a) => a !== correct)
+  answer(wrong)
+
+  const afterPush = (() => {
+    commit({ ...state, focus: 'HU_PUSH_8' })
+    advance()
+    const pushSeats = el.table.children.filter((c) => (c.attributes.class || '').startsWith('seat'))
+    return {
+      key: current.drillKey,
+      seats: pushSeats.length,
+      chips: el.table.children.filter((c) => c.attributes.class === 'hu-chip').length,
+      stack: (el.table.children.find((c) => c.attributes.class === 'felt-stack') || {}).textContent,
+      actions: DRILL_BY_KEY[current.drillKey].actions.map((a) => a.label),
+    }
+  })()
+
+  return {
+    key: 'HU_CALL_10',
+    seats: seats.length,
+    stack: stackLabel ? stackLabel.textContent : null,
+    chips: chips.length,
+    feltText,
+    modeHint,
+    note: el.verdictNote.textContent,
+    coachWhy: el.coachWhy.textContent,
+    coachTip: el.coachTip.textContent,
+    gridCells: el.grid.children.length,
+    chartHidden: el.chart.hidden,
+    huRows: el.statsHu.children.length,
+    afterPush,
+  }
+})()`)
+
+check(huUi.seats === 2 && huUi.afterPush.seats === 2, 'ヘッズアップの図は席が2つ', `${huUi.seats} / ${huUi.afterPush.seats}`)
+check(
+  huUi.stack === '残り 10bb' && huUi.afterPush.stack === '残り 8bb',
+  'ヘッズアップの図に残りスタックが出る',
+  `${huUi.stack} / ${huUi.afterPush.stack}`,
+)
+check(
+  huUi.chips === 3 && huUi.feltText.includes('オールイン'),
+  '受ける側の図には飛んできたオールイン (チップ) が出る',
+  huUi.feltText.slice(0, 60),
+)
+check(huUi.afterPush.chips === 0, '押す側の図にはまだチップが出ていない', String(huUi.afterPush.chips))
+check(
+  huUi.afterPush.actions.join('/') === 'オールイン/フォールド',
+  '押す側の選択肢は オールイン / フォールド',
+  huUi.afterPush.actions.join('/'),
+)
+check(
+  huUi.note.includes('ソルバーはこの手を') && huUi.note.includes('%'),
+  '間違えたときにソルバーの頻度が出る',
+  huUi.note.slice(0, 70),
+)
+check(
+  huUi.coachWhy.length > 0 && huUi.coachTip.length > 0 && huUi.coachWhy.includes('%'),
+  'ヘッズアップのコーチが「なぜ」と「覚え方」を数字つきで出す',
+  huUi.coachWhy.slice(0, 50),
+)
+check(huUi.chartHidden === false && huUi.gridCells === 169, 'ヘッズアップでも 13x13 の全体レンジが出る')
+check(huUi.huRows === 6, '成績表にヘッズアップの 6 行が出る', String(huUi.huRows))
+check(huUi.modeHint.includes('ソルバー'), 'ヘッズアップモードの説明がソルバー由来だと言っている', huUi.modeHint.slice(0, 40))
+
+run(`commit({ ...state, focus: null, mode: 'rfi' }); renderModes(state, selectMode); renderDashboard(state, selectFocus); advance()`)
+
 // ---- オールインの考え方 (解説で言い切っている数字の検算) ----
 
 // 必要勝率 = 追加で払う額 ÷ 決着後のポット (BB が SB のジャムを受ける形)

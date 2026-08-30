@@ -310,9 +310,9 @@ const verdictNoteText = (drill, question, grade) => {
     const solverLine = `ソルバーはこの手を ${freq}% で${solverAction}する。`
     const shareText =
       grade.correctAction === 'fold'
-        ? `${drill.stackBb}bb で降りる手は全体の ${drill.foldBaseline.toFixed(0)}%。`
-        : `${drill.stackBb}bb で ${correctLabel} する手は全体の ${pctOf(drill.sets[grade.correctAction]).toFixed(0)}%。`
-    return `${drill.label} で ${question.hand} は ${correctLabel}。${solverLine}${shareText}`
+        ? `この深さで降りる手は全体の ${drill.foldBaseline.toFixed(0)}%。`
+        : `この深さで${correctLabel}する手は全体の ${pctOf(drill.sets[grade.correctAction]).toFixed(0)}%。`
+    return `残り ${drill.stackBb}bb のヘッズアップで ${question.hand} は ${correctLabel}。${solverLine}${shareText}`
   }
 
   const share =
