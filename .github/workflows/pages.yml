@@ -27,6 +27,8 @@ jobs:
       - run: node tools/verify.mjs
       - run: node tools/build.mjs
       - run: node tools/verify-bundle.mjs
+      # Pages に置くのは PWA 一式だけ。trainer.html / artifact.html は同じページの複製なので配らない
+      - run: rm dist/trainer.html dist/artifact.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
