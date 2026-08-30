@@ -388,33 +388,104 @@ check(
 
 const review = run(`(() => {
   let s = { ...freshState(), mode: 'mixed' }
-  for (let i = 0; i < 15; i++) {
+  const play = (chooseAction) => {
     const { question, reviewQueue } = takeQuestion(s)
     s = { ...s, reviewQueue }
     const drill = DRILL_BY_KEY[question.drillKey]
     const correct = drill.answerFor(question.hand)
-    const wrong = drill.actions.map((a) => a.id).find((a) => a !== correct)
+    const chosen = chooseAction(drill, correct)
     s = recordAnswer(s, {
       drillKey: question.drillKey,
       hand: question.hand,
-      chosenAction: wrong,
+      chosenAction: chosen,
       correctAction: correct,
-      isCorrect: false,
+      isCorrect: chosen === correct,
+      isReview: question.isReview,
+      reviewStreak: question.streak,
     })
+    return question
   }
+
+  // まず全問間違えてキューを貯める
+  for (let i = 0; i < 15; i++) play((drill, correct) => drill.actions.map((a) => a.id).find((a) => a !== correct))
+
   const queued = s.reviewQueue.length
-  const valid = s.reviewQueue.every((it) => DRILL_BY_KEY[it.drillKey] && UNIQUE_HANDS.includes(it.hand))
+  const valid = s.reviewQueue.every(
+    (it) => DRILL_BY_KEY[it.drillKey] && UNIQUE_HANDS.includes(it.hand) && it.streak === 0,
+  )
+
+  // 以降は全問正解。復習は2回連続で正解して初めて卒業するので、消化には往復が要る
   let drawn = 0
-  for (let i = 0; i < 400 && s.reviewQueue.length > 0; i++) {
-    const { question, reviewQueue } = takeQuestion(s)
-    s = { ...s, reviewQueue }
-    if (question.isReview) drawn++
+  for (let i = 0; i < 3000 && s.reviewQueue.length > 0; i++) {
+    if (play((drill, correct) => correct).isReview) drawn++
   }
   return { queued, valid, drawn, drained: s.reviewQueue.length }
 })()`)
 check(review.queued > 0 && review.queued <= 15, 'ミスした問題が復習キューに入る', `${review.queued} 件`)
-check(review.valid, '復習キューの中身が壊れていない')
-check(review.drawn > 0 && review.drained === 0, '復習キューが再出題され、最終的に消化される')
+check(review.valid, '復習キューの中身が壊れていない (streak 付き)')
+check(review.drawn > 0 && review.drained === 0, '正解を続ければ復習キューは最終的に空になる')
+check(review.drawn >= review.queued * 2, '卒業には復習1件あたり2回以上の出題が要る', `${review.drawn} 回 / ${review.queued} 件`)
+
+// 卒業条件そのものを1件ずつ確かめる。
+// takeQuestion は引いた時点でキューから外すので、「外した状態 (reviewQueue: []) で
+// recordAnswer を呼ぶ」が実アプリと同じ手順になる。
+const graduate = run(`(() => {
+  const item = { drillKey: 'RFI_UTG', hand: 'AA' }
+  const base = { ...freshState(), reviewQueue: [] }
+  const answerAs = (s, isReview, reviewStreak, isCorrect) =>
+    recordAnswer(s, {
+      drillKey: item.drillKey,
+      hand: item.hand,
+      chosenAction: isCorrect ? 'raise' : 'fold',
+      correctAction: 'raise',
+      isCorrect,
+      isReview,
+      reviewStreak,
+    })
+
+  const missed = answerAs(base, false, 0, false)
+  const drawn = { ...missed, reviewQueue: [] } // 復習として引かれた直後の形
+  const once = answerAs(drawn, true, 0, true)
+  const twice = answerAs({ ...once, reviewQueue: [] }, true, 1, true)
+  const relapse = answerAs({ ...once, reviewQueue: [] }, true, 1, false)
+
+  return {
+    freshCorrect: answerAs(base, false, 0, true).reviewQueue,
+    missed: missed.reviewQueue,
+    once: once.reviewQueue,
+    twice: twice.reviewQueue,
+    relapse: relapse.reviewQueue,
+  }
+})()`)
+const streaksOf = (queue) => queue.map((it) => it.streak)
+check(graduate.freshCorrect.length === 0, '素の出題で正解してもキューには入らない')
+check(
+  graduate.missed.length === 1 && graduate.missed[0].streak === 0,
+  '間違えると streak 0 でキューに入る',
+  JSON.stringify(streaksOf(graduate.missed)),
+)
+check(
+  graduate.once.length === 1 && graduate.once[0].streak === 1,
+  '復習で1回正解しても卒業せず streak 1 で戻る',
+  JSON.stringify(streaksOf(graduate.once)),
+)
+check(graduate.twice.length === 0, '復習で2回連続正解すると卒業してキューから消える')
+check(
+  graduate.relapse.length === 1 && graduate.relapse[0].streak === 0,
+  '1回正解のあと間違えると streak は 0 に戻る',
+  JSON.stringify(streaksOf(graduate.relapse)),
+)
+
+// 卒業条件が「1回正解」だった頃の保存には streak が無い。捨てずに 0 から数え直す。
+const legacyReview = run(`reconcile({
+  ...freshState(),
+  reviewQueue: [{ drillKey: 'RFI_UTG', hand: 'AA' }, { drillKey: 'BTN_BB', hand: 'KTo', streak: 1 }],
+}).reviewQueue`)
+check(
+  legacyReview.length === 2 && legacyReview[0].streak === 0 && legacyReview[1].streak === 1,
+  'streak を持たない古い保存も読める (0 から数え直す)',
+  JSON.stringify(streaksOf(legacyReview)),
+)
 
 // 復習キューはモードをまたいで貯まる。今のモードで出せない復習を引いてはいけない
 // (サイズモードにカード付きのレンジ問題が出る / RFI モードに bb の4択が出る、という事故)。
@@ -2592,6 +2663,39 @@ const cleared = run(`(() => {
   return el.actions.children.every((b) => ![...b.classList._set].some((c) => c.startsWith('is-')))
 })()`)
 check(cleared, '次の問題に進むとボタンの色付けが消える')
+
+// main.js が復習の情報 (isReview / streak) を recordAnswer まで通しているか。
+// ここが切れるとロジックだけ緑で、実アプリでは1回で卒業してしまう。
+// 実 state を触るので、以降にチェックを足すなら必ずこの後ろに置く。
+const reviewWiring = run(`(() => {
+  commit({ ...freshState(), mode: 'rfi' })
+
+  current = { drillKey: 'RFI_UTG', hand: 'AA', isReview: true, streak: 0 }
+  answered = false
+  renderQuestion(state, current, answer)
+  const note = el.spotNote.textContent
+  answer('raise')
+  const afterFirst = state.reviewQueue.map((it) => it.streak)
+
+  current = { drillKey: 'RFI_UTG', hand: 'AA', isReview: true, streak: 1 }
+  answered = false
+  commit({ ...state, reviewQueue: [] })
+  answer('raise')
+  const afterSecond = state.reviewQueue.length
+
+  return { note, afterFirst, afterSecond }
+})()`)
+check(
+  reviewWiring.afterFirst.length === 1 && reviewWiring.afterFirst[0] === 1,
+  '配線: 復習に正解すると streak 1 でキューに戻る',
+  JSON.stringify(reviewWiring.afterFirst),
+)
+check(reviewWiring.afterSecond === 0, '配線: 2回目の正解で卒業する')
+check(
+  reviewWiring.note.includes('復習') && reviewWiring.note.includes('あと 2 回'),
+  '復習の出題には「あと何回連続正解で卒業か」が出る',
+  reviewWiring.note,
+)
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`)
 process.exit(failures === 0 ? 0 : 1)

@@ -100,6 +100,8 @@ const isReviewableIn = (mode, item) => {
 
 // 間違えたハンドは優先キューに入り、一定確率で再出題される (軽い間隔反復)。
 // 常に { question, reviewQueue } を返す。復習を引いたときだけキューが縮む。
+// 引いた時点では外すだけで、卒業させるか戻すかは recordAnswer (stats.js) が決める。
+// question には item の streak (これまでの連続正解回数) がそのまま乗る。
 const takeQuestion = (state) => {
   const queue = state.reviewQueue
   const mode = MODE_BY_ID[state.mode] || MODE_BY_ID.rfi

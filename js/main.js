@@ -34,6 +34,9 @@ function answer(chosenAction) {
     chosenAction,
     correctAction: grade.correctAction,
     isCorrect: grade.isCorrect,
+    // 復習として出した問題かどうかで、キューに戻すか卒業させるかが変わる
+    isReview: current.isReview === true,
+    reviewStreak: current.streak,
   })
 
   // 記録と連続日数の更新を 1 回の保存にまとめる (完走判定は記録後の今日のログから作り直す)

@@ -377,7 +377,12 @@ const renderQuestion = (state, question, onAnswer, onSeatTap = null) => {
 
   renderTable(drill, onSeatTap)
   el.spotTitle.textContent = drill.title
-  el.spotNote.textContent = question.isReview ? `${drill.note} — 復習` : drill.note
+  // 復習は「2回連続正解」で卒業する。あと何回で抜けるかを出さないと、
+  // 同じ手が返ってくる理由が分からず徒労に見える。
+  const remaining = REVIEW_GRADUATE_AT - (question.streak || 0)
+  el.spotNote.textContent = question.isReview
+    ? `${drill.note} — 復習 (あと ${remaining} 回連続正解で卒業)`
+    : drill.note
 
   renderHandArea(drill, question.hand)
 

@@ -9,6 +9,10 @@ const HISTORY_CAP = 300
 const SPARK_WINDOW = 20
 const MAX_REVIEW_QUEUE = 40
 
+// 復習の卒業条件 = 復習として出題されて連続で正解した回数。
+// 1回で卒業させると、まぐれ当たりや「さっき見たばかり」で抜けてしまい、覚えていない手が消える。
+const REVIEW_GRADUATE_AT = 2
+
 // 弱点として指摘する閾値。少ない試行でノイズを断定しないための下限。
 const LEAK_MIN_ASKED = 4
 const LEAK_MIN_ERROR_RATE = 0.3
@@ -103,8 +107,11 @@ const reconcile = (state) => {
     next.byCategory[drill.key] = categories
   }
 
-  // 消えたドリルの復習・狙い撃ちは捨てる
-  next.reviewQueue = (next.reviewQueue || []).filter((item) => DRILL_BY_KEY[item.drillKey])
+  // 消えたドリルの復習・狙い撃ちは捨てる。
+  // streak を持たない古い保存 (卒業条件が1回だった頃) は 0 から数え直す。
+  next.reviewQueue = (next.reviewQueue || [])
+    .filter((item) => item && DRILL_BY_KEY[item.drillKey])
+    .map((item) => ({ ...item, streak: item.streak || 0 }))
   if (next.focus && !DRILL_BY_KEY[next.focus]) next.focus = null
 
   const daily = next.daily || {}
@@ -235,8 +242,25 @@ const foldDaily = (state, drillKey) => {
   }
 }
 
+// 復習キューを1問ぶん進める (軽い Leitner)。
+// takeQuestion は引いた時点でキューから外すので、ここが「戻すかどうか」の唯一の判断場所。
+//   - 間違えた: 連続正解を 0 に戻して末尾へ入れ直す (新規のミスもここを通る)
+//   - 復習で正解: REVIEW_GRADUATE_AT 回連続に届けば卒業、届かなければ streak+1 で末尾へ
+//   - 素の出題で正解: キューに関係しない
+// 末尾に入れ直すのは、直後にもう一度同じ手を引いて「覚えた気」になるのを避けるため。
+const foldReviewQueue = (state, { drillKey, hand, isCorrect, isReview, reviewStreak }) => {
+  const nextStreak = isCorrect ? reviewStreak + 1 : 0
+  if (isCorrect && (!isReview || nextStreak >= REVIEW_GRADUATE_AT)) return state.reviewQueue
+  if (state.reviewQueue.length >= MAX_REVIEW_QUEUE) return state.reviewQueue
+  return [...state.reviewQueue, { drillKey, hand, streak: nextStreak }]
+}
+
 // 1問ぶんの結果を畳み込む。state は書き換えず新しい値を返す。
-const recordAnswer = (state, { drillKey, hand, chosenAction, correctAction, isCorrect }) => {
+// isReview / reviewStreak は出題側 (takeQuestion が返した question) から渡す。
+const recordAnswer = (
+  state,
+  { drillKey, hand, chosenAction, correctAction, isCorrect, isReview = false, reviewStreak = 0 },
+) => {
   const drillStat = state.byDrill[drillKey]
 
   const nextDrill = {
@@ -251,8 +275,7 @@ const recordAnswer = (state, { drillKey, hand, chosenAction, correctAction, isCo
   const nextStreak = { current, best: Math.max(current, state.streak.best) }
   const nextHistory = [...state.history, isCorrect ? 1 : 0].slice(-HISTORY_CAP)
 
-  const shouldQueue = !isCorrect && state.reviewQueue.length < MAX_REVIEW_QUEUE
-  const nextQueue = shouldQueue ? [...state.reviewQueue, { drillKey, hand }] : state.reviewQueue
+  const nextQueue = foldReviewQueue(state, { drillKey, hand, isCorrect, isReview, reviewStreak })
 
   // ミスは履歴にも残す (復習キューと違って消費されない。振り返り用)
   const nextMissLog = isCorrect
