@@ -351,6 +351,27 @@ function selectNashStack(stackBb) {
   drawNash()
 }
 
+// ---- 上部のジャンプバー ----
+//
+// 飛び先が畳んだ <details> なら先に開ける。開けずに飛ぶと renderWhenOpened が走らず、
+// 中身が空のまま見出しだけに着地する。
+// 見出しが固定バーに隠れないぶんの余白は style.css の scroll-margin-top が持つ。
+
+const jumpTo = (sectionId) => {
+  const target = document.getElementById(sectionId)
+  if (!target) return
+  if (target.tagName === 'DETAILS' && !target.open) target.open = true
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+// リンク1つずつではなくバーに1つ付ける (項目を足しても配線を触らなくていい)
+el.jump.addEventListener('click', (event) => {
+  const href = event.target && event.target.getAttribute ? event.target.getAttribute('href') : null
+  if (!href || href[0] !== '#') return
+  event.preventDefault()
+  jumpTo(href.slice(1))
+})
+
 // ---- 起動時の描画 ----
 //
 // 畳んである <details> の中身は、開かれるまで描かない。全部描くと 169 マスのグリッドを

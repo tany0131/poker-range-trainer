@@ -12,6 +12,21 @@
       <h1>プリフロップ レンジトレーナー</h1>
       <p class="sub">6-max / 100bb / キャッシュゲーム。テーブルの状況を見て、フォールド・コール・レイズを選ぶ。</p>
 
+      <!-- 1ページに全部が縦に並んでいるので、上に出しっぱなしの目次を置く。
+           畳んだセクションへ飛ぶときは main.js が先に開ける (開かないと遅延描画が走らない)。 -->
+      <nav class="jump" id="jump" aria-label="セクションへ移動">
+        <a href="#prompt">練習</a>
+        <a href="#stats">成績</a>
+        <a href="#daily">今日の特訓</a>
+        <a href="#reference">定石</a>
+        <a href="#fill">穴埋め</a>
+        <a href="#equity">勝率</a>
+        <a href="#calc">電卓</a>
+        <a href="#nash">ソルバー</a>
+        <a href="#glossary">用語</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+
       <details class="card intro" id="intro">
         <summary>はじめての人へ — ポーカーを知らなくても大丈夫</summary>
         <div class="intro-body">
@@ -864,7 +879,7 @@
         </div>
       </details>
 
-      <section class="card">
+      <section class="card" id="stats">
         <h2>成績</h2>
 
         <svg class="spark" id="spark" viewBox="0 0 320 56" preserveAspectRatio="none" role="img" aria-label="直近の正解率の推移"></svg>

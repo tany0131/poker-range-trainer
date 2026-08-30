@@ -2733,5 +2733,36 @@ check(
   reviewWiring.note,
 )
 
+// ---- 上部のジャンプバー ----
+//
+// 飛び先の id が無いリンクは押しても何も起きず、しかも黙って壊れる。
+// index.html を直接読んで、リンク先が実在することを毎回確かめる。
+
+const indexHtml = readFileSync(join(ROOT, 'index.html'), 'utf8')
+const styleCss = readFileSync(join(ROOT, 'style.css'), 'utf8')
+
+const jumpNav = (indexHtml.match(/<nav class="jump"[\s\S]*?<\/nav>/) || [''])[0]
+const jumpTargets = [...jumpNav.matchAll(/href="#([^"]+)"/g)].map((m) => m[1])
+const htmlIds = [...indexHtml.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1])
+const htmlIdSet = new Set(htmlIds)
+
+check(jumpTargets.length >= 8, 'ジャンプバーに主要セクションが並んでいる', `${jumpTargets.length} 件`)
+const deadLinks = jumpTargets.filter((id) => !htmlIdSet.has(id))
+check(deadLinks.length === 0, 'ジャンプバーのリンク先の id が全部実在する', deadLinks.join(','))
+check(htmlIds.length === htmlIdSet.size, 'id が重複していない (飛び先が曖昧にならない)')
+
+// 貼り付いたバーが見出しを隠さないための余白。飛び先ごとに要る。
+const scrollMarginSelectors = [...styleCss.matchAll(/([^{}]+)\{[^{}]*scroll-margin-top[^{}]*\}/g)]
+  .map((m) => m[1])
+  .join(',')
+const noMargin = jumpTargets.filter((id) => !new RegExp(`#${id}\\b`).test(scrollMarginSelectors))
+check(noMargin.length === 0, 'ジャンプ先には scroll-margin-top が効いている', noMargin.join(','))
+check(/\.jump\s*\{[^}]*position:\s*sticky/.test(styleCss), 'ジャンプバーは貼り付いたまま (sticky)')
+check(/\.jump\s*\{[^}]*overflow-x:\s*auto/.test(styleCss), 'ジャンプバーは横スクロールする (折り返さない)')
+check(
+  (elements.get('jump')._listeners.click || []).length === 1,
+  'ジャンプバーにタップの配線がある (畳んだセクションを開いてから飛ぶ)',
+)
+
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`)
 process.exit(failures === 0 ? 0 : 1)

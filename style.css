@@ -47,6 +47,71 @@ h1 {
   margin: 0 0 20px;
 }
 
+/* ---- ジャンプバー (上に出しっぱなしの目次) ---- */
+/*
+ * 1ページに全セクションが縦に並ぶので、上端に貼り付けて常に移動できるようにする。
+ * 折り返さずに横スクロールさせる — 項目が増えてもバーの高さが変わらないため。
+ */
+
+.jump {
+  position: sticky;
+  top: 0;
+  z-index: 30; /* 早見表 (50) と そのボタン (40) より下 */
+  display: flex;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.jump::-webkit-scrollbar {
+  display: none;
+}
+
+.jump a {
+  flex: 0 0 auto;
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.jump a:hover {
+  color: var(--text);
+  border-color: var(--dim);
+}
+
+.jump a:active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #241a05;
+}
+
+/* 貼り付いたバーが見出しを隠さないように、飛び先の上に余白を取る */
+#prompt,
+#stats,
+#daily,
+#reference,
+#fill,
+#equity,
+#calc,
+#nash,
+#glossary,
+#faq {
+  scroll-margin-top: 60px;
+}
+
 .card {
   background: var(--panel);
   border: 1px solid var(--line);

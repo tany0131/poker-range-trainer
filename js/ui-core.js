@@ -46,6 +46,7 @@ const el = {
   sound: document.getElementById('btn-sound'),
   easy: document.getElementById('btn-easy'),
   intro: document.getElementById('intro'),
+  jump: document.getElementById('jump'),
   // 畳んだセクションの <details> 本体。main.js が「開いたら描く」の配線に使う。
   growth: document.getElementById('growth'),
   reference: document.getElementById('reference'),
