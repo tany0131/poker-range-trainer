@@ -117,25 +117,12 @@ context.window = context // AudioContext は未定義 → 音は自動的に no-
 
 vm.createContext(context)
 
+// 読み込む順は index.html の <script src> がそのまま正本 (build.mjs と同じ読み方)。
+// ここに手で並べ直した第二の一覧を持つと、index.html を並べ替えたときに黙って食い違う。
 const SCRIPTS = [
-  'js/ranges.js',
-  'js/spots.js',
-  'js/coach.js',
-  'js/coach-easy.js',
-  'js/cards.js',
-  'js/stats.js',
-  'js/daily.js',
-  'js/glossary.js',
-  'js/faq.js',
-  'js/tips.js',
-  'js/equity.js',
-  'js/matchups.js',
-  'js/gto.js',
-  'js/quiz.js',
-  'js/audio.js',
-  'js/ui.js',
-  'js/main.js',
-]
+  ...readFileSync(join(ROOT, 'index.html'), 'utf8').matchAll(/<script src="([^"]+)"><\/script>/g),
+].map((m) => m[1])
+if (SCRIPTS.length === 0) throw new Error('index.html に <script src> が見つからない')
 
 try {
   for (const file of SCRIPTS) {

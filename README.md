@@ -57,7 +57,14 @@ js/cards.js     ハンド表記 → 表示用のカード 2 枚
 js/quiz.js      出題 (モード / 重み付き抽選 / 復習キュー / 狙い撃ち)
 js/stats.js     成績・永続化・弱点分析
 js/audio.js     効果音 (WebAudio で合成。外部ファイルなし)
-js/ui.js        描画
+js/ui-core.js       描画の共通部品 (el / 色とラベル / SVG / 用語リンク / 13x13 グリッド)
+js/ui-question.js   出題まわり (モード / テーブル図 / カード / アクション / 判定)
+js/ui-dashboard.js  成績カード (ドリル別の表 / 推移グラフ / 弱点 / ミス履歴 / トグル)
+js/ui-learn.js      読んで覚えるカード (育ち方 / 今日の特訓 / 用語 / ミス / 勝率表 / FAQ / 解説)
+js/ui-sheet.js      早見表シート
+js/ui-tools.js      練習ツール (定石ビューア / 穴埋め / 電卓 / ソルバー / 役割クイズ)
 js/main.js      配線
 tools/          検証とビルド
 ```
+
+`ui-core.js` は他の `ui-*.js` から使われるので、読み込み順では必ず先に来る。

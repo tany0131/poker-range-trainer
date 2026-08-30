@@ -35,8 +35,12 @@ verify.mjs が既知の解析値 (AA=85.2%、AAvsKK≈82% 等) と照合し、�
 
 `file://` で直接開けることを維持している (ES modules は CORS で弾かれる)。
 `js/*.js` はクラシックスクリプトで、グローバルスコープを共有する。`index.html` の
-`<script src>` の**並び順が依存順**。`tools/build.mjs` はその順序をそのまま読むので、
-並べ替えると壊れる。
+`<script src>` の**並び順が依存順**で、これが唯一の正本 — `tools/build.mjs` も
+`tools/verify.mjs` も同じ正規表現でここから読む。ファイルを足したら index.html に
+1 行足すだけでよい (ツール側に第二の一覧は無い)。
+
+`ui-*.js` は `ui-core.js` (el マップ・色とラベル・SVG・共通グリッド) に依存するので、
+ui 系の中では `ui-core.js` が先頭。
 
 ### レンジまわりの罠 (どれも verify.mjs がアサートしている)
 
