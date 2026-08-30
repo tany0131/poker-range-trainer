@@ -190,6 +190,44 @@ const saveState = (state) => {
   }
 }
 
+// ---- 成績の持ち出し (別 URL / 端末への引っ越し) ----
+//
+// Artifact 版と Pages 版は別オリジンなので localStorage を共有できない。
+// 成績を JSON にして人が運べるようにするのがこの2つ。DOM に触らない純粋な関数なので
+// verify がそのまま検算できる。
+
+// 記録した総問題数。書き出し / 読み込みの案内に「何問ぶんか」を出すのに使う。
+const totalAsked = (state) =>
+  Object.values(state.byDrill || {}).reduce((sum, stat) => sum + ((stat && stat.asked) || 0), 0)
+
+const exportStateText = (state) => JSON.stringify(state)
+
+// 読み込みは「壊れた JSON で成績を消す」のが最悪の事故なので、通す前に全部弾く。
+// 成功したときだけ { state } を返し、それ以外は必ず { error } (呼び出し側は何も変えない)。
+const importStateText = (text) => {
+  if (typeof text !== 'string' || text.trim() === '') return { error: '中身が空' }
+
+  let parsed
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return { error: 'JSON として読めない (貼り付けが途中で切れていないか)' }
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { error: '成績データの形ではない' }
+  }
+  if (typeof parsed.version !== 'number') {
+    return { error: 'version が無い (このアプリの成績データではない)' }
+  }
+
+  // 古い保存も捨てずに持ち上げる。移行の道が無いときだけ失敗させる (loadState と同じ判断)。
+  const migrated = migrateState(parsed)
+  if (!migrated) return { error: `古すぎて移行できない (version ${parsed.version})` }
+
+  return { state: reconcile(migrated) }
+}
+
 // サイズのドリルは「ミスの向き (強すぎ/弱すぎ)」を持たない (額に強弱の一直線がないため)。
 // ハンドにも依存しないので、ハンド分類ごとの弱点分析からは外す。
 const isRangeDrill = (drillKey) => DRILL_BY_KEY[drillKey].type !== 'sizing'

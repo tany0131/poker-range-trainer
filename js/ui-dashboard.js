@@ -203,6 +203,32 @@ const renderEasy = (state) => {
   el.easy.classList.toggle('on', state.easyMode)
 }
 
+// ---- 成績の引っ越し (書き出し / 読み込み) ----
+//
+// view = null で畳む。開いているときは { mode: 'export' | 'import', message, isError, confirming }。
+// 上書きの確認は window.confirm を使わず、ボタンの文言を 2 段階にして代える。
+
+const renderTransfer = (view) => {
+  if (!view) {
+    el.transfer.hidden = true
+    return
+  }
+
+  el.transfer.hidden = false
+  el.transferMsg.textContent = view.message || ''
+  el.transferMsg.classList.toggle('is-error', view.isError === true)
+
+  // 書き出しは「選んでコピーするための枠」なので、読み込みボタンは出さない
+  el.transferRun.hidden = view.mode !== 'import'
+  el.transferRun.textContent = view.confirming ? '上書きする' : '読み込む'
+  el.transferRun.classList.toggle('is-danger', view.confirming === true)
+  el.transferText.readOnly = view.mode === 'export'
+  el.transferText.setAttribute(
+    'placeholder',
+    view.mode === 'import' ? '書き出した JSON をここに貼り付ける' : '',
+  )
+}
+
 // ---- 成績カード全体 ----
 
 const renderDashboard = (state, onFocus) => {

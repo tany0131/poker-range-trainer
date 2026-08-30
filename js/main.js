@@ -101,6 +101,85 @@ el.reset.addEventListener('click', () => {
   advance()
 })
 
+// ---- 成績の引っ越し (別 URL / 端末へ持ち越す) ----
+//
+// 開いているパネルの状態は一時的なので保存しない。
+// 読み込みは「押した瞬間に上書き」ではなく、検算 → 確認 → 上書きの 3 段階。
+
+let transfer = null
+
+const showTransfer = (view) => {
+  transfer = view
+  renderTransfer(transfer)
+}
+
+// クリップボードは iOS Safari や iframe の中で使えないことがある。
+// 失敗しても書き出した JSON はテキスト欄に残るので、手で選んでコピーできる。
+const copyToClipboard = (text, done) => {
+  try {
+    if (typeof navigator === 'undefined' || !navigator.clipboard || !navigator.clipboard.writeText) {
+      done(false)
+      return
+    }
+    navigator.clipboard.writeText(text).then(() => done(true), () => done(false))
+  } catch {
+    done(false)
+  }
+}
+
+el.exportBtn.addEventListener('click', () => {
+  const text = exportStateText(state)
+  el.transferText.value = text
+  showTransfer({ mode: 'export', message: `書き出した (${totalAsked(state)} 問ぶんの記録)` })
+  copyToClipboard(text, (copied) => {
+    showTransfer({
+      mode: 'export',
+      message: copied
+        ? `コピーした (${totalAsked(state)} 問ぶんの記録) — 移動先の「成績を読み込む」に貼り付ける。`
+        : `コピーできなかった — 下の枠の中身を全部選んでコピーする (${totalAsked(state)} 問ぶんの記録)。`,
+    })
+  })
+})
+
+el.importBtn.addEventListener('click', () => {
+  el.transferText.value = ''
+  showTransfer({ mode: 'import', message: '書き出した JSON を貼り付けて「読み込む」。' })
+})
+
+// 中身が書き換わったら確認をやり直す (確認済みの状態で別の JSON を通さない)
+el.transferText.addEventListener('input', () => {
+  if (transfer && transfer.confirming) {
+    showTransfer({ mode: 'import', message: '書き出した JSON を貼り付けて「読み込む」。' })
+  }
+})
+
+el.transferRun.addEventListener('click', () => {
+  const result = importStateText(el.transferText.value || '')
+
+  if (result.error) {
+    showTransfer({ mode: 'import', message: `読み込めない: ${result.error}`, isError: true })
+    return
+  }
+
+  if (!transfer || !transfer.confirming) {
+    showTransfer({
+      mode: 'import',
+      confirming: true,
+      message: `本当に上書きする？ 今の記録 (${totalAsked(state)} 問) は消えます。`,
+    })
+    return
+  }
+
+  commit(result.state)
+  showTransfer({ mode: 'import', message: `読み込んだ (${totalAsked(state)} 問ぶんの記録)` })
+  renderModes(state, selectMode)
+  renderDashboard(state, selectFocus)
+  renderDaily(state, startDailyTask)
+  advance()
+})
+
+el.transferClose.addEventListener('click', () => showTransfer(null))
+
 el.glossarySearch.addEventListener('input', () => renderGlossary(el.glossarySearch.value))
 el.faqSearch.addEventListener('input', () => renderFaq(el.faqSearch.value))
 
@@ -402,6 +481,7 @@ renderWhenOpened(el.reference, drawReference)
 
 // ここから下は畳めない (常に見えている) ので必ず描く
 closeSheet()
+showTransfer(null)
 renderModes(state, selectMode)
 renderDashboard(state, selectFocus)
 renderDaily(state, startDailyTask)

@@ -866,6 +866,49 @@ tbody tr:last-child td {
   color: var(--muted);
 }
 
+/* ---- 成績の引っ越し (書き出し / 読み込み) ---- */
+
+.transfer {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.transfer-msg {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.transfer-msg.is-error {
+  color: var(--bad);
+}
+
+.transfer-text {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.transfer .controls {
+  margin-top: 10px;
+}
+
+.transfer button.is-danger {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
 /* ---- レンジの育ち方 ---- */
 
 .cell.grow-in {

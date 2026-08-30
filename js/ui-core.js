@@ -45,6 +45,13 @@ const el = {
   reset: document.getElementById('btn-reset'),
   sound: document.getElementById('btn-sound'),
   easy: document.getElementById('btn-easy'),
+  exportBtn: document.getElementById('btn-export'),
+  importBtn: document.getElementById('btn-import'),
+  transfer: document.getElementById('transfer'),
+  transferMsg: document.getElementById('transfer-msg'),
+  transferText: document.getElementById('transfer-text'),
+  transferRun: document.getElementById('btn-transfer-run'),
+  transferClose: document.getElementById('btn-transfer-close'),
   intro: document.getElementById('intro'),
   jump: document.getElementById('jump'),
   // 畳んだセクションの <details> 本体。main.js が「開いたら描く」の配線に使う。

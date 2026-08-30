@@ -960,6 +960,24 @@
           <strong>説明</strong>を「やさしく」にすると、間違えたときの解説と定石ビューアの答えが
           <strong>専門用語なしの言い方</strong>に変わります。答えそのものは変わりません。
         </p>
+
+        <div class="controls">
+          <button id="btn-export">成績を書き出す</button>
+          <button id="btn-import">成績を読み込む</button>
+        </div>
+        <p class="stats-note">
+          成績はブラウザごと (URL ごと) に保存されるので、<strong>別の URL / 端末へ持ち越すための機能</strong>です。
+          元の端末で<strong>書き出して</strong>、移動先で<strong>読み込む</strong>。読み込むと今の記録は<strong>上書き</strong>されます。
+        </p>
+
+        <div class="transfer" id="transfer" hidden>
+          <p class="transfer-msg" id="transfer-msg"></p>
+          <textarea class="transfer-text" id="transfer-text" rows="4" spellcheck="false"></textarea>
+          <div class="controls">
+            <button id="btn-transfer-run">読み込む</button>
+            <button id="btn-transfer-close">閉じる</button>
+          </div>
+        </div>
       </section>
     </main>
 

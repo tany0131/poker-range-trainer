@@ -2733,6 +2733,196 @@ check(
   reviewWiring.note,
 )
 
+// ---- 成績の引っ越し (書き出し / 読み込み) ----
+//
+// 別 URL / 端末へ成績を運ぶための機能。壊れた JSON で成績を消すのが最悪の事故なので、
+// 「弾いたときに何も変わらない」ことまで見る。
+// ここも実 state を触るので、後ろに足すチェックは巻き添えに注意 (最後に freshState に戻す)。
+
+const roundTrip = run(`(() => {
+  const seeded = recordAnswer({ ...freshState(), mode: 'boundary', easyMode: true }, {
+    drillKey: 'RFI_UTG', hand: 'AA', chosenAction: 'fold', correctAction: 'raise', isCorrect: false,
+  })
+  const back = importStateText(exportStateText(seeded))
+  return {
+    ok: !!back.state,
+    asked: back.state.byDrill.RFI_UTG.asked,
+    mode: back.state.mode,
+    easyMode: back.state.easyMode,
+    queue: back.state.reviewQueue.length,
+    misses: back.state.missLog.length,
+    total: totalAsked(back.state),
+  }
+})()`)
+check(
+  roundTrip.ok && roundTrip.asked === 1 && roundTrip.mode === 'boundary' && roundTrip.easyMode === true,
+  '引っ越し: 書き出した JSON を読み込むと成績・設定がそのまま戻る',
+  JSON.stringify(roundTrip),
+)
+check(
+  roundTrip.queue === 1 && roundTrip.misses === 1 && roundTrip.total === 1,
+  '引っ越し: 復習キューとミス履歴も往復する',
+  JSON.stringify(roundTrip),
+)
+
+const importErrors = run(`(() => {
+  const cases = {
+    empty: importStateText('   '),
+    notJson: importStateText('これは JSON ではない'),
+    array: importStateText('[1,2,3]'),
+    scalar: importStateText('42'),
+    noVersion: importStateText(JSON.stringify({ byDrill: {} })),
+    badVersion: importStateText(JSON.stringify({ version: 'three' })),
+    unmigratable: importStateText(JSON.stringify({ version: 1, byDrill: {} })),
+    notString: importStateText(null),
+  }
+  return Object.fromEntries(
+    Object.entries(cases).map(([k, v]) => [k, v.state === undefined && typeof v.error === 'string']),
+  )
+})()`)
+check(
+  Object.values(importErrors).every(Boolean),
+  '引っ越し: 壊れた入力は全部 error になり state を返さない',
+  JSON.stringify(importErrors),
+)
+
+check(
+  run(`(() => {
+    // 移行の道があれば古い版も読める (v2 → v3 の関数を一時的に足して確かめる)
+    STATE_MIGRATIONS[3] = (s) => ({ ...s, version: 3 })
+    const old = importStateText(JSON.stringify({ version: 2, byDrill: { RFI_UTG: { asked: 9, correct: 7 } } }))
+    delete STATE_MIGRATIONS[3]
+    return old.state && old.state.version === 3 && old.state.byDrill.RFI_UTG.asked === 9
+  })()`),
+  '引っ越し: 古い版の JSON は migrateState で持ち上げてから読む',
+)
+
+const importReconciled = run(`(() => {
+  const blob = {
+    ...freshState(),
+    focus: 'NO_SUCH_DRILL',
+    reviewQueue: [{ drillKey: 'NO_SUCH_DRILL', hand: 'AA' }, { drillKey: 'RFI_UTG', hand: 'KK' }],
+    byHand: { NO_SUCH_DRILL: { AA: { a: 3, w: 2 } }, RFI_UTG: { QQ: { a: 2, w: 1 }, ZZZ: { a: 1, w: 1 } } },
+    missLog: [{ d: '2020-01-01', drillKey: 'NO_SUCH_DRILL', hand: 'AA', chosen: 'fold', correct: 'raise' }],
+    fillBest: { NO_SUCH_DRILL: 80 },
+  }
+  const back = importStateText(JSON.stringify(blob))
+  return {
+    focus: back.state.focus,
+    queue: back.state.reviewQueue.map((q) => q.drillKey),
+    streak: back.state.reviewQueue[0].streak,
+    hands: Object.keys(back.state.byHand),
+    rfiHands: Object.keys(back.state.byHand.RFI_UTG || {}),
+    misses: back.state.missLog.length,
+    fill: Object.keys(back.state.fillBest).length,
+  }
+})()`)
+check(
+  importReconciled.focus === null &&
+    importReconciled.queue.length === 1 &&
+    importReconciled.queue[0] === 'RFI_UTG' &&
+    importReconciled.streak === 0,
+  '引っ越し: 知らないドリルキーは reconcile が落とす (復習キュー / 狙い撃ち)',
+  JSON.stringify(importReconciled),
+)
+check(
+  importReconciled.hands.join(',') === 'RFI_UTG' &&
+    importReconciled.rfiHands.join(',') === 'QQ' &&
+    importReconciled.misses === 0 &&
+    importReconciled.fill === 0,
+  '引っ越し: 知らないハンド / ドリルは成績からも落ちる',
+  JSON.stringify(importReconciled),
+)
+
+// UI の配線: 書き出しボタン → 枠に JSON、読み込みは 検算 → 確認 → 上書きの 3 段階
+const transferFlow = run(`(() => {
+  commit(recordAnswer({ ...freshState(), mode: 'rfi' }, {
+    drillKey: 'RFI_UTG', hand: 'AA', chosenAction: 'raise', correctAction: 'raise', isCorrect: true,
+  }))
+
+  el.exportBtn.dispatch('click')
+  const exported = el.transferText.value
+  const exportView = {
+    open: el.transfer.hidden === false,
+    runHidden: el.transferRun.hidden,
+    readOnly: el.transferText.readOnly,
+    msg: el.transferMsg.textContent,
+  }
+
+  // 引っ越し先を模して記録を空にする
+  commit({ ...freshState(), mode: 'rfi' })
+  el.importBtn.dispatch('click')
+  const importView = { runHidden: el.transferRun.hidden, label: el.transferRun.textContent }
+
+  // ゴミを読ませても state は動かない
+  el.transferText.value = '{ 壊れた'
+  el.transferRun.dispatch('click')
+  const rejected = {
+    msg: el.transferMsg.textContent,
+    isError: el.transferMsg.classList.contains('is-error'),
+    label: el.transferRun.textContent,
+    asked: totalAsked(state),
+  }
+
+  // 1 回目は確認、2 回目で上書き
+  el.transferText.value = exported
+  el.transferRun.dispatch('click')
+  const confirming = { label: el.transferRun.textContent, msg: el.transferMsg.textContent, asked: totalAsked(state) }
+
+  // 貼り直したら確認はやり直し
+  el.transferText.dispatch('input')
+  const afterEdit = el.transferRun.textContent
+
+  el.transferRun.dispatch('click')
+  el.transferRun.dispatch('click')
+  const applied = { asked: totalAsked(state), msg: el.transferMsg.textContent, label: el.transferRun.textContent }
+
+  el.transferClose.dispatch('click')
+  return { exported, exportView, importView, rejected, confirming, afterEdit, applied, closed: el.transfer.hidden }
+})()`)
+check(
+  transferFlow.exportView.open &&
+    transferFlow.exportView.runHidden === true &&
+    transferFlow.exportView.readOnly === true &&
+    JSON.parse(transferFlow.exported).version === 3,
+  '引っ越し: 書き出しは枠に JSON を出す (読み込みボタンは出さない)',
+  JSON.stringify(transferFlow.exportView),
+)
+check(
+  transferFlow.exportView.msg.includes('コピー'),
+  '引っ越し: クリップボードが無い環境でも「選んでコピー」の案内が出る',
+  transferFlow.exportView.msg,
+)
+check(
+  transferFlow.rejected.msg.startsWith('読み込めない:') &&
+    transferFlow.rejected.isError === true &&
+    transferFlow.rejected.label === '読み込む' &&
+    transferFlow.rejected.asked === 0,
+  '引っ越し: 読めない JSON はエラーを出すだけで成績を変えない',
+  JSON.stringify(transferFlow.rejected),
+)
+check(
+  transferFlow.confirming.label === '上書きする' &&
+    transferFlow.confirming.msg.includes('本当に上書きする') &&
+    transferFlow.confirming.asked === 0,
+  '引っ越し: 1 回目のタップは確認だけ (まだ上書きしない)',
+  JSON.stringify(transferFlow.confirming),
+)
+check(
+  transferFlow.afterEdit === '読み込む',
+  '引っ越し: 貼り直すと確認はやり直しになる',
+  transferFlow.afterEdit,
+)
+check(
+  transferFlow.applied.asked === 1 && transferFlow.applied.msg.includes('読み込んだ (1 問'),
+  '引っ越し: 2 回目のタップで上書きされ、件数が出る',
+  JSON.stringify(transferFlow.applied),
+)
+check(transferFlow.closed === true, '引っ越し: 閉じるとパネルが畳まれる')
+
+// 後片付け: 以降のチェックに引っ越しの state を持ち越さない
+run(`commit({ ...freshState(), mode: 'rfi' }); renderDashboard(state, selectFocus); advance()`)
+
 // ---- 上部のジャンプバー ----
 //
 // 飛び先の id が無いリンクは押しても何も起きず、しかも黙って壊れる。
@@ -2750,6 +2940,19 @@ check(jumpTargets.length >= 8, 'ジャンプバーに主要セクションが並
 const deadLinks = jumpTargets.filter((id) => !htmlIdSet.has(id))
 check(deadLinks.length === 0, 'ジャンプバーのリンク先の id が全部実在する', deadLinks.join(','))
 check(htmlIds.length === htmlIdSet.size, 'id が重複していない (飛び先が曖昧にならない)')
+
+// 引っ越しの UI が index.html にある (el.* はスタブが自動で作ってしまうので、実体はここで見る)
+const transferIds = ['btn-export', 'btn-import', 'transfer', 'transfer-msg', 'transfer-text', 'btn-transfer-run', 'btn-transfer-close']
+const missingTransfer = transferIds.filter((id) => !htmlIdSet.has(id))
+check(missingTransfer.length === 0, '引っ越しのボタンとテキスト欄が index.html にある', missingTransfer.join(','))
+check(
+  /<div class="transfer" id="transfer" hidden>/.test(indexHtml),
+  '引っ越しのパネルは畳んだ状態で始まる',
+)
+check(
+  indexHtml.includes('別の URL / 端末へ持ち越すための機能'),
+  '引っ越しの UI に「何のための機能か」が書いてある',
+)
 
 // 貼り付いたバーが見出しを隠さないための余白。飛び先ごとに要る。
 const scrollMarginSelectors = [...styleCss.matchAll(/([^{}]+)\{[^{}]*scroll-margin-top[^{}]*\}/g)]
