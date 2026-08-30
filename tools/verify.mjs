@@ -68,7 +68,18 @@ const makeElement = () => ({
   setAttribute(key, value) {
     this.attributes[key] = value
   },
-  addEventListener() {},
+  // 登録されたリスナーを覚えておく (実際の発火はテスト側の dispatch から)。
+  // これが無いと「開いたときに描く」遅延描画を検証できない。
+  _listeners: {},
+  addEventListener(type, fn, options) {
+    if (!this._listeners[type]) this._listeners[type] = []
+    this._listeners[type].push({ fn, once: !!(options && options.once) })
+  },
+  dispatch(type) {
+    const listeners = this._listeners[type] || []
+    this._listeners[type] = listeners.filter((l) => !l.once) // once は 1 回で外れる
+    for (const listener of listeners) listener.fn({ type, target: this })
+  },
   focus() {},
 })
 
@@ -137,6 +148,44 @@ try {
 }
 
 const run = (code) => vm.runInContext(code, context)
+
+// ---- 遅延描画 (畳んだセクションは開くまで描かない) ----
+//
+// スタブの <details> は open が undefined = 閉じた扱いなので、起動直後は
+// main.js の renderWhenOpened がリスナーを登録しただけの状態になる。
+// まず「描かれていない」ことを確かめ、そのあと全セクションを開いて
+// 以降の UI チェックが今までどおり中身を見られるようにする。
+
+const LAZY_SECTIONS = [
+  'growth', 'reference', 'fill', 'bluffq', 'equity',
+  'calc', 'nash', 'faq', 'mistakes', 'help', 'glossary',
+]
+
+const openSection = (id) => {
+  const node = elements.get(id)
+  node.open = true
+  node.dispatch('toggle')
+}
+
+check(
+  run('el.equityGrid.children.length') === 0 &&
+    run('el.nashSbGrid.children.length') === 0 &&
+    run('el.glossaryBody.children.length') === 0 &&
+    run('fill === null') &&
+    run('bluff === null'),
+  '起動時: 畳んだセクションは描かれない',
+)
+openSection('equity')
+openSection('nash')
+check(
+  run('el.equityGrid.children.length') === 169 && run('el.nashSbGrid.children.length') === 169,
+  '開いた時点で描かれる (勝率表 / ソルバー)',
+)
+for (const id of LAZY_SECTIONS) openSection(id)
+check(
+  run('fill !== null') && run('bluff !== null') && run('el.glossaryBody.children.length') > 0,
+  '全セクションを開けば残りも描かれる',
+)
 
 // ---- RFI レンジ ----
 

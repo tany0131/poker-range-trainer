@@ -351,18 +351,36 @@ function selectNashStack(stackBb) {
   drawNash()
 }
 
-renderHelp()
-renderGlossary()
-renderFaq()
-renderMistakes()
-renderEquity(equityHand, pickEquityHand)
-startFill(DRILLS[0].key)
-nextBluff()
-drawCalc()
-drawNash()
+// ---- 起動時の描画 ----
+//
+// 畳んである <details> の中身は、開かれるまで描かない。全部描くと 169 マスのグリッドを
+// 何枚も作り、ソルバーまで回すので、練習を始めるまでの待ち時間がそのぶん伸びる。
+// 開いた状態で始まるセクション (growth など) は if 分岐で即描画される。
+//
+// toggle は開閉どちらでも飛ぶが、閉→開の1回目しか使わないので once で十分。
+// 「開いた状態で始まる」ケースだけ1回目が閉じるイベントになるが、それは上の分岐が先に拾う。
+const renderWhenOpened = (detailsEl, render) => {
+  if (detailsEl.open) {
+    render()
+    return
+  }
+  detailsEl.addEventListener('toggle', () => detailsEl.open && render(), { once: true })
+}
+
+renderWhenOpened(el.help, renderHelp)
+renderWhenOpened(el.glossary, () => renderGlossary())
+renderWhenOpened(el.faq, () => renderFaq())
+renderWhenOpened(el.mistakes, renderMistakes)
+renderWhenOpened(el.equity, () => renderEquity(equityHand, pickEquityHand))
+renderWhenOpened(el.fill, () => startFill(DRILLS[0].key))
+renderWhenOpened(el.bluffq, nextBluff)
+renderWhenOpened(el.calc, drawCalc)
+renderWhenOpened(el.nash, drawNash)
+renderWhenOpened(el.growth, () => renderGrowth(growthStep, selectGrowthStep))
+renderWhenOpened(el.reference, drawReference)
+
+// ここから下は畳めない (常に見えている) ので必ず描く
 closeSheet()
-renderGrowth(growthStep, selectGrowthStep)
-drawReference()
 renderModes(state, selectMode)
 renderDashboard(state, selectFocus)
 renderDaily(state, startDailyTask)

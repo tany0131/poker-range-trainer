@@ -43,9 +43,24 @@ const makeElement = () => ({
   get innerHTML() { return '' },
   appendChild(c) { this.children.push(c); return c },
   setAttribute(k, v) { this.attributes[k] = v },
-  addEventListener() {},
+  // 遅延描画 (畳んだセクションは開くまで描かない) を発火できるように覚えておく
+  _listeners: {},
+  addEventListener(type, fn, options) {
+    if (!this._listeners[type]) this._listeners[type] = []
+    this._listeners[type].push({ fn, once: !!(options && options.once) })
+  },
+  dispatch(type) {
+    const listeners = this._listeners[type] || []
+    this._listeners[type] = listeners.filter((l) => !l.once)
+    for (const listener of listeners) listener.fn({ type, target: this })
+  },
   focus() {},
 })
+
+const LAZY_SECTIONS = [
+  'growth', 'reference', 'fill', 'bluffq', 'equity',
+  'calc', 'nash', 'faq', 'mistakes', 'help', 'glossary',
+]
 
 for (const file of ['dist/trainer.html', 'dist/artifact.html']) {
   console.log(`\n--- ${file} ---`)
@@ -96,6 +111,14 @@ for (const file of ['dist/trainer.html', 'dist/artifact.html']) {
   }
 
   const run = (code) => vm.runInContext(code, context)
+
+  // 畳んだセクションは開くまで描かれない。開いてから中身のチェックに入る。
+  check(run('el.equityGrid.children.length') === 0, `${file}: 畳んだセクションは起動時に描かれない`)
+  for (const id of LAZY_SECTIONS) {
+    const node = elements.get(id)
+    node.open = true
+    node.dispatch('toggle')
+  }
 
   // ソース側と同じ結論が出るか (順序が壊れていれば ここで落ちる)
   check(run('DRILLS.length') === 19, `${file}: ドリルが 19 個`, String(run('DRILLS.length')))
