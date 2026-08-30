@@ -2,7 +2,9 @@
 
 6-max テキサスホールデムのプリフロップ・レンジを覚えるトレーナー。ビルド不要の静的サイト。
 
-配布先 (Artifact・非公開): https://claude.ai/code/artifact/113f2364-d5eb-4bb0-9da4-44a34b0087d8
+配布先 = GitHub Pages https://tany0131.github.io/poker-range-trainer/
+(push で Actions が verify → build → verify-bundle → deploy)。
+Artifact 版は移行期間だけ併存 (URL は会話ログにある)。
 
 ## 出荷手順 (必ずこの順)
 
@@ -12,10 +14,14 @@ node tools/build.mjs         # 単一 HTML に畳む → dist/
 node tools/verify-bundle.mjs # 畳んだ後のバンドルを実行して再検証
 ```
 
-その後 Artifact を**同じ file_path で再公開**すれば URL は変わらない (成績 = localStorage が保たれる)。
-新しい URL を切ると **iPhone に入っている成績が失われる**ので、絶対に別パスで公開しない。
+**`dist/` はコミットしない** (.gitignore 済み)。Actions が push のたびにその場で畳んで配る。
+手元で 3 つ通してから push する — CI で落ちるのは、通していないのと同じ。
 
 `verify-bundle.mjs` を省略しないこと。ソースが通ってもインライン化で順序が壊れる事故は起きる。
+
+副次的に、Artifact 版を更新するときは**同じ file_path で再公開**すれば URL は変わらない
+(成績 = localStorage が保たれる)。別パスで公開すると Artifact 版に入っている成績が失われる。
+移行そのものは成績カードの「成績を書き出す / 読み込む」で行う (別オリジンなので自動では移らない)。
 
 `js/equity.js` (対ランダム勝率) は `node tools/gen-equity.mjs`、`js/matchups.js` (169×169 対戦マトリクス) は
 `node tools/gen-matchups.mjs` の生成物 — どちらも手で編集しない。seed 固定モンテカルロなので再生成しても同じ値。
@@ -41,6 +47,20 @@ verify.mjs が既知の解析値 (AA=85.2%、AAvsKK≈82% 等) と照合し、�
 
 `ui-*.js` は `ui-core.js` (el マップ・色とラベル・SVG・共通グリッド) に依存するので、
 ui 系の中では `ui-core.js` が先頭。
+
+### PWA まわり (index.html の script タグの約束)
+
+`manifest.webmanifest` / `sw.js` / `icons/` が PWA 一式。`sw.js` の `__BUILD_ID__` は
+`build.mjs` が畳んだ HTML の sha に置き換える (置き換え忘れると直しても古い版が出続けるので、
+verify-bundle がプレースホルダの残りを検査する)。
+
+body 末尾の Service Worker 登録は **`<script data-sw>`** で書く。build.mjs と verify-bundle は
+「**属性なしの script タグ = アプリ本体のバンドル**」で拾うので、属性を外すと本体と取り違える。
+同じ理由で、**HTML のコメントや本文に素の script タグ名を書かない** (文字列ごと拾われて
+バンドルが壊れる。実際に踏んだ)。build.mjs が個数を数えて止める。
+
+アイコンの PNG は `node tools/gen-icons.mjs` (macOS 専用: qlmanage + sips) の生成物。
+`icons/icon.svg` が正本で、PNG は焼いてコミットする (CI は焼かない)。
 
 ### レンジまわりの罠 (どれも verify.mjs がアサートしている)
 
