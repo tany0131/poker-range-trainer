@@ -24,7 +24,7 @@ const ERROR_TOO_LOOSE = 'tooLoose' // 正解より強く行った = 開けすぎ
 const ERROR_TOO_TIGHT = 'tooTight' // 正解より弱く行った = 消極的
 
 // アクションの強さ。ミスの向きを判定するのに使う。
-const AGGRESSION = { fold: 0, call: 1, threebet: 2, raise: 2 }
+const AGGRESSION = { fold: 0, call: 1, threebet: 2, raise: 2, jam: 2 }
 
 const errorDirection = (chosenAction, correctAction) =>
   AGGRESSION[chosenAction] > AGGRESSION[correctAction] ? ERROR_TOO_LOOSE : ERROR_TOO_TIGHT
@@ -51,13 +51,16 @@ const dayNumberOf = (key) => {
   return Math.floor(Date.UTC(year, month - 1, day) / 86400000)
 }
 
-// byDrill はサイズのドリルも数える。byCategory (弱点分析) はレンジのドリルだけ。
+// byDrill はサイズのドリルも数える。byCategory (弱点分析) はカードを配るドリルだけ
+// (サイズはハンドに依存せず、ミスの向きも持たない)。
+const CATEGORY_DRILLS = ALL_DRILLS.filter((drill) => drill.type !== 'sizing')
+
 const emptyDrillStats = () =>
   Object.fromEntries(ALL_DRILLS.map((d) => [d.key, { asked: 0, correct: 0 }]))
 
 const emptyCategoryStats = () =>
   Object.fromEntries(
-    DRILLS.map((d) => [
+    CATEGORY_DRILLS.map((d) => [
       d.key,
       Object.fromEntries(
         CATEGORIES.map((c) => [c.id, { asked: 0, [ERROR_TOO_LOOSE]: 0, [ERROR_TOO_TIGHT]: 0 }]),
@@ -97,7 +100,7 @@ const reconcile = (state) => {
     if (!next.byDrill[drill.key]) next.byDrill[drill.key] = { asked: 0, correct: 0 }
   }
 
-  for (const drill of DRILLS) {
+  for (const drill of CATEGORY_DRILLS) {
     const categories = next.byCategory[drill.key] || {}
     for (const category of CATEGORIES) {
       if (!categories[category.id]) {
@@ -383,7 +386,7 @@ const rollingAccuracy = (history) => {
 const overallTendency = (state) => {
   let loose = 0
   let tight = 0
-  for (const drill of DRILLS) {
+  for (const drill of CATEGORY_DRILLS) {
     for (const category of CATEGORIES) {
       const stat = state.byCategory[drill.key][category.id]
       loose += stat[ERROR_TOO_LOOSE]
@@ -407,7 +410,7 @@ const overallTendency = (state) => {
 const findLeaks = (state) => {
   const leaks = []
 
-  for (const drill of DRILLS) {
+  for (const drill of CATEGORY_DRILLS) {
     for (const category of CATEGORIES) {
       const stat = state.byCategory[drill.key][category.id]
       const errors = stat[ERROR_TOO_LOOSE] + stat[ERROR_TOO_TIGHT]

@@ -873,7 +873,7 @@ check(run(`fmtBb(7.5) === '7.5bb' && fmtBb(9) === '9bb' && fmtBb(1.5) === '1.5bb
 // ---- サイズ ----
 
 check(run('SIZING_DRILLS.length') === 19, 'サイズは全 19 スポットぶんある', String(run('SIZING_DRILLS.length')))
-check(run('ALL_DRILLS.length') === 38, 'ALL_DRILLS = レンジ 19 + サイズ 19')
+check(run('ALL_DRILLS.length') === 44, 'ALL_DRILLS = レンジ 19 + サイズ 19 + ヘッズアップ 6', String(run('ALL_DRILLS.length')))
 check(run(`DRILLS.every((d) => d.type !== 'sizing')`), 'DRILLS (弱点分析が回る側) にサイズは混ざらない')
 
 // 教えている規則そのもの: オープン 2.5bb (SB だけ 3bb) / 3ベット IP 7.5bb・OOP 10bb

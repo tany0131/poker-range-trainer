@@ -81,6 +81,53 @@ const renderTable = (drill, onSeatTap = null) => {
   }
 }
 
+// ---- テーブル (ヘッズアップ = 残り2人) ----
+//
+// 6-max の図は席が6つある前提なので、残り2人はこちらで描く。上が相手・下が自分。
+// 受ける側 (BB) の出題では、相手のオールインをチップと ALL-IN の札で見せる —
+// 「いくら飛んできたのか」が見えないと、必要勝率の話が数字遊びになる。
+const HU_SEAT_XY = { villain: [170, 45], hero: [170, 165] }
+
+const huSeatsOf = (drill) =>
+  drill.seat === 'sb'
+    ? [
+        { role: 'villain', label: 'BB', state: 'waiting', tag: '' },
+        { role: 'hero', label: 'BTN', state: 'hero', tag: 'YOU' },
+      ]
+    : [
+        { role: 'villain', label: 'BTN', state: 'raiser', tag: 'ALL-IN' },
+        { role: 'hero', label: 'BB', state: 'hero', tag: 'YOU' },
+      ]
+
+const renderHuTable = (drill) => {
+  el.table.innerHTML = ''
+  el.table.appendChild(svg('ellipse', { class: 'felt-bg', cx: 170, cy: 105, rx: 120, ry: 68 }))
+
+  const isFacingJam = drill.seat === 'bb'
+
+  // 相手のオールインぶんのチップ。飛んできた額が見えるようにする。
+  if (isFacingJam) {
+    for (const x of [152, 170, 188]) {
+      el.table.appendChild(svg('circle', { class: 'hu-chip', cx: x, cy: 74, r: 4 }))
+    }
+  }
+
+  const lead = isFacingJam ? `ボタンが ${drill.stackBb}bb オールイン` : '残り2人 (ヘッズアップ)'
+  el.table.appendChild(svg('text', { class: 'felt-text', x: 170, y: 92 }, lead))
+  el.table.appendChild(svg('text', { class: 'felt-pot', x: 170, y: 106 }, `ポット ${fmtBb(huPot(drill))}`))
+  el.table.appendChild(svg('text', { class: 'felt-stack', x: 170, y: 119 }, `残り ${drill.stackBb}bb`))
+  el.table.appendChild(svg('text', { class: 'felt-text', x: 170, y: 132 }, 'あなたの番'))
+
+  for (const seat of huSeatsOf(drill)) {
+    const [x, y] = HU_SEAT_XY[seat.role]
+    const group = svg('g', { class: `seat seat-${seat.state}` })
+    group.appendChild(svg('circle', { class: 'seat-ring', cx: x, cy: y, r: 22 }))
+    group.appendChild(svg('text', { class: 'seat-label', x, y: y + 1 }, seat.label))
+    if (seat.tag) group.appendChild(svg('text', { class: 'seat-tag', x, y: y + 12 }, seat.tag))
+    el.table.appendChild(group)
+  }
+}
+
 // ---- カード ----
 
 const renderCards = (hand) => {
@@ -202,7 +249,10 @@ const renderHandArea = (drill, hand) => {
 const renderQuestion = (state, question, onAnswer, onSeatTap = null) => {
   const drill = DRILL_BY_KEY[question.drillKey]
 
-  renderTable(drill, onSeatTap)
+  // ヘッズアップは席が2つしかないので専用の図を描く (6-max の図は6席前提)
+  if (drill.type === 'hu') renderHuTable(drill)
+  else renderTable(drill, onSeatTap)
+
   el.spotTitle.textContent = drill.title
   // 復習は「2回連続正解」で卒業する。あと何回で抜けるかを出さないと、
   // 同じ手が返ってくる理由が分からず徒労に見える。
@@ -250,6 +300,19 @@ const verdictNoteText = (drill, question, grade) => {
         : `手元から ${fmtBb(put)} 出す`
 
     return `${fmtBb(pot)} 入っているポットを取りに ${correctLabel} — ${chips}。持ち金 ${STACK_BB}bb の ${((size / STACK_BB) * 100).toFixed(1)}%、ポットの ${(size / pot).toFixed(1)} 倍。`
+  }
+
+  // ヘッズアップは丸める前のソルバーの頻度まで見せる。
+  // 「1ハンド1答」に丸めているのはこちらの都合なので、元の数字を隠さない。
+  if (drill.type === 'hu') {
+    const freq = (drill.freqOf(question.hand) * 100).toFixed(0)
+    const solverAction = drill.seat === 'sb' ? 'オールイン' : 'コール'
+    const solverLine = `ソルバーはこの手を ${freq}% で${solverAction}する。`
+    const shareText =
+      grade.correctAction === 'fold'
+        ? `${drill.stackBb}bb で降りる手は全体の ${drill.foldBaseline.toFixed(0)}%。`
+        : `${drill.stackBb}bb で ${correctLabel} する手は全体の ${pctOf(drill.sets[grade.correctAction]).toFixed(0)}%。`
+    return `${drill.label} で ${question.hand} は ${correctLabel}。${solverLine}${shareText}`
   }
 
   const share =

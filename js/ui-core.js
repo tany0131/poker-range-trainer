@@ -5,6 +5,7 @@
 
 const ACTION_COLORS = {
   raise: 'act-raise',
+  jam: 'act-raise', // オールインはレイズと同じ「攻める」色でよい (同じ画面に並ばない)
   threebet: 'act-threebet',
   call: 'act-call',
   fold: 'act-fold',
@@ -12,6 +13,7 @@ const ACTION_COLORS = {
 
 const ACTION_LABELS = {
   raise: 'レイズ',
+  jam: 'オールイン',
   threebet: '3ベット',
   call: 'コール',
   fold: 'フォールド',
@@ -73,6 +75,7 @@ const el = {
   dailyStreak: document.getElementById('daily-streak'),
   dailyDone: document.getElementById('daily-done'),
   statsSizing: document.getElementById('stats-sizing'),
+  statsHu: document.getElementById('stats-hu'),
   glossarySearch: document.getElementById('glossary-search'),
   glossaryBody: document.getElementById('glossary-body'),
   glossaryCount: document.getElementById('glossary-count'),

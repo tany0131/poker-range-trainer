@@ -145,6 +145,48 @@ const easyVsRfiTip = (drill, hand) => {
   return `${drill.raiser} のレイズに対して ${hand} は: ${line}`
 }
 
+// ---- ヘッズアップ (残り2人・浅いスタック) ----
+
+const easyHuWhy = (drill, hand) => {
+  const stackBb = drill.stackBb
+  const answer = drill.answerFor(hand)
+
+  if (drill.seat === 'sb') {
+    const callSet = HU_SETS[stackBb].call
+    const callPct = pctOf(callSet)
+    const equity = equityVsRange(hand, callSet)
+
+    if (answer === 'jam') {
+      return `持ち点が ${stackBb}bb しかないので、少しだけ賭けても次で全部入ってしまいます。だから「全部賭ける」か「降りる」かの二択です。全部賭ける手の良いところは、勝ち方が2つあること。相手が受けて立つのは ${callPct.toFixed(0)}% の手だけなので、残りの ${(100 - callPct).toFixed(0)}% は相手が降りてそのまま勝ち。受けて立たれても、${hand} はその強い手たちに ${equity.toFixed(0)}% 勝てます。だから押します。`
+    }
+    return `${hand} は押しません。相手が受けて立つ手 (全体の ${callPct.toFixed(0)}%) に対して ${equity.toFixed(0)}% しか勝てないからです。相手が降りてくれる回数を足しても、持ち点 ${stackBb}bb を丸ごと賭ける割には合いません。押せる手は持ち点が減るほど広がりますが、この手はまだその外側です。`
+  }
+
+  const pushSet = HU_SETS[stackBb].push
+  const pushPct = pctOf(pushSet)
+  const need = huCallNeed(stackBb)
+  const equity = equityVsRange(hand, pushSet)
+
+  if (answer === 'call') {
+    return `受ける側には「相手を降ろして勝つ」がありません。カードを最後まで見て勝つしかないので、計算だけで決まります。あと ${fmtBb(huCallCost(stackBb))} 足して ${fmtBb(2 * stackBb)} を取りにいくので、${need.toFixed(0)}% 勝てるなら受けたほうが得。${hand} は相手が突っ込んでくる手 (全体の ${pushPct.toFixed(0)}%) に ${equity.toFixed(0)}% 勝てるので、受けます。`
+  }
+  return `あと ${fmtBb(huCallCost(stackBb))} 足して ${fmtBb(2 * stackBb)} を取りにいく形なので、${need.toFixed(0)}% 勝てないと受けても損です。${hand} は相手が突っ込んでくる手 (全体の ${pushPct.toFixed(0)}%) に ${equity.toFixed(0)}% しか勝てないので降ります。「相手が広く突っ込んでくるから広く受ける」は行きすぎで、受ける側はいつも押す側より狭くなります。`
+}
+
+const easyHuTip = (drill, hand) => {
+  const shortWords = { jam: '押す', call: '受ける', fold: '降りる' }
+  const line = HU_STACKS.map((stackBb) => {
+    const other = DRILL_BY_KEY[`HU_${drill.seat === 'sb' ? 'PUSH' : 'CALL'}_${stackBb}`]
+    return `残り ${stackBb}bb なら ${shortWords[other.answerFor(hand)]}`
+  }).join(' · ')
+
+  const moral =
+    drill.seat === 'sb'
+      ? '持ち点が少ないほど、押せる手は広くなります。'
+      : '受けるほうは、押すほうより必ず狭くなります。'
+  return `${hand} を持ったとき: ${line} — ${moral}`
+}
+
 // ---- サイズ ----
 
 const easySizingWhy = (drill) => {
@@ -179,6 +221,10 @@ const easySizingTip = (drill) => {
 const easyCoachFor = (drill, hand) => {
   if (drill.type === 'sizing') {
     return { why: easySizingWhy(drill), tip: easySizingTip(drill) }
+  }
+
+  if (drill.type === 'hu') {
+    return { why: easyHuWhy(drill, hand), tip: easyHuTip(drill, hand) }
   }
 
   if (drill.type === 'rfi') {

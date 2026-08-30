@@ -225,6 +225,58 @@ const vsRfiTip = (drill, hand) => {
   return `${hand} は ${drill.raiser} のレイズに対して: ${line}`
 }
 
+// ---- ヘッズアップ (残り2人・浅いスタック) ----
+//
+// 答えの出どころがソルバーなので、説明もソルバーの数字で書く。
+// 押す側: 降ろして勝つ筋 + めくり合いで勝つ筋の二段構え。
+// 受ける側: めくり合いの1本しかないので、必要勝率 (ポットオッズ) との比較がすべて。
+// 数字は毎回その場で計算する (equityVsRange / HU_SETS) ので、レンジとずれない。
+
+const HU_SHORT = { jam: '押す', call: 'コール', fold: '降り' }
+
+// そのハンドを、全スタックでどうするか (8 押す · 10 押す · 15 降り)
+const huStackLine = (drill, hand) =>
+  HU_STACKS.map((stackBb) => {
+    const other = DRILL_BY_KEY[`HU_${drill.seat === 'sb' ? 'PUSH' : 'CALL'}_${stackBb}`]
+    return `${stackBb}bb ${HU_SHORT[other.answerFor(hand)]}`
+  }).join(' · ')
+
+const huWhy = (drill, hand) => {
+  const stackBb = drill.stackBb
+  const answer = drill.answerFor(hand)
+  const freq = (drill.freqOf(hand) * 100).toFixed(0)
+
+  if (drill.seat === 'sb') {
+    const callSet = HU_SETS[stackBb].call
+    const callPct = pctOf(callSet)
+    const equity = equityVsRange(hand, callSet)
+
+    if (answer === 'jam') {
+      return `ソルバーはこの手を ${freq}% でオールインする。押す手の強みは勝ち筋が2本あること: BB がコールに回すのは全体の ${callPct.toFixed(0)}% だけなので ${(100 - callPct).toFixed(0)}% はそのまま ${fmtBb(huPot(drill))} を拾え、コールされても BB のコールレンジ相手に ${equity.toFixed(0)}% 残っている。${stackBb}bb ではレイズを作る余地が無いので、参加する価値がある手は全部この形で入れる。`
+    }
+    return `ソルバーがこの手をオールインする頻度は ${freq}%。BB のコールレンジ (全体の ${callPct.toFixed(0)}%) 相手に ${equity.toFixed(0)}% しかなく、降ろせるぶんを足しても ${stackBb}bb 丸ごと賭ける割に合わない。浅いほど押せる手は広がるが、この手はまだ下側にいる。`
+  }
+
+  const pushSet = HU_SETS[stackBb].push
+  const pushPct = pctOf(pushSet)
+  const need = huCallNeed(stackBb)
+  const equity = equityVsRange(hand, pushSet)
+
+  if (answer === 'call') {
+    return `ソルバーはこの手を ${freq}% でコールする。受ける側は「降ろして勝つ」筋が無いので算数だけ: 追加 ${fmtBb(huCallCost(stackBb))} で ${fmtBb(2 * stackBb)} のポットを取りにいくから必要勝率は ${need.toFixed(0)}%。${hand} は相手の ${pushPct.toFixed(0)}% のジャムレンジ相手に ${equity.toFixed(0)}% あるので、${need.toFixed(0)}% を上回る = コールが得。`
+  }
+  return `ソルバーがこの手をコールする頻度は ${freq}%。必要勝率は ${need.toFixed(0)}% (追加 ${fmtBb(huCallCost(stackBb))} で ${fmtBb(2 * stackBb)} を取りにいく) だが、${hand} は相手の ${pushPct.toFixed(0)}% のジャムレンジ相手に ${equity.toFixed(0)}% しかない。足りないので降りる。相手のレンジが広くても、受ける側は押す側より必ず狭くなる。`
+}
+
+const huTip = (drill, hand) => {
+  const line = `${hand}: ${huStackLine(drill, hand)}`
+  const moral =
+    drill.seat === 'sb'
+      ? '浅いほど広く押す (8bb で 6割超、15bb で 5割弱)。押す側は降ろして勝てるぶん広い。'
+      : `受ける側は押す側より必ず狭い (降ろして勝つ筋が無いから)。必要勝率は ${huCallNeed(drill.stackBb).toFixed(0)}%。`
+  return `${line} — ${moral}`
+}
+
 // ---- サイズ ----
 
 const sizingWhy = (drill) => {
@@ -268,6 +320,10 @@ const sizingTip = (drill) => {
 const detailCoachFor = (drill, hand) => {
   if (drill.type === 'sizing') {
     return { why: sizingWhy(drill), tip: sizingTip(drill) }
+  }
+
+  if (drill.type === 'hu') {
+    return { why: huWhy(drill, hand), tip: huTip(drill, hand) }
   }
 
   if (drill.type === 'rfi') {

@@ -937,6 +937,24 @@
           「オープン 2.5bb (SB だけ 3bb)」と「3ベットは IP 3x / OOP 4x」の2本だけなので、ここは 100% を狙えます。
         </p>
 
+        <h3 class="stats-head">ヘッズアップ (残り2人・浅いスタック)</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>状況</th>
+              <th>出題</th>
+              <th>基準</th>
+              <th>正解率</th>
+            </tr>
+          </thead>
+          <tbody id="stats-hu"></tbody>
+        </table>
+        <p class="stats-note">
+          ヘッズアップの答えは、このアプリの<strong>ナッシュ均衡ソルバーが計算した均衡そのもの</strong>です
+          (「プッシュ/フォールド ソルバー」カードと同じ計算)。扱うのは浅くなった押し引きだけで、
+          100bb の深いヘッズアップは<strong>入れていません</strong> — 検算できる出どころが無いからです。
+        </p>
+
         <p class="stats-note">
           <strong>行をタップすると、その状況だけを狙い撃ちで練習</strong>できます。弱点を潰すときに使う。
         </p>
@@ -1009,7 +1027,9 @@
     </div>
 
     <script src="js/ranges.js"></script>
+    <script src="js/hu-ranges.js"></script>
     <script src="js/spots.js"></script>
+    <script src="js/spots-hu.js"></script>
     <script src="js/coach.js"></script>
     <script src="js/coach-easy.js"></script>
     <script src="js/cards.js"></script>

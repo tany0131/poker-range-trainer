@@ -235,6 +235,7 @@ const renderDashboard = (state, onFocus) => {
   renderDrillTable(el.statsRfi, state, RFI_DRILLS, onFocus)
   renderDrillTable(el.statsVs, state, VS_RFI_DRILLS, onFocus)
   renderDrillTable(el.statsSizing, state, SIZING_DRILLS, onFocus)
+  renderDrillTable(el.statsHu, state, HU_DRILLS, onFocus)
   renderFocus(state)
   renderSpark(state)
   renderLeaks(state)

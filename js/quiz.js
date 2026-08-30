@@ -35,9 +35,17 @@ const MODES = [
     easyHint: 'いくら賭けるかの練習。bb = いちばん安い賭け金1個ぶんの単位で、持ち金は 100bb。額は手の強さでは変えない (変えると読まれる) ので、ここではカードを配りません。覚えるのは2つだけです。',
   },
   {
+    id: 'hu',
+    label: 'ヘッズアップ',
+    drills: () => HU_DRILLS,
+    hint: '実戦の「残り2人」で浅くなった時の、オールインかフォールドか。答えはこのアプリのナッシュ均衡ソルバー (下の「プッシュ/フォールド ソルバー」カード) が計算した均衡そのもの。8 / 10 / 15bb の押す側と受ける側で 6 スポット。',
+    easyHint: '相手があと1人しかいなくて、持ち点も少なくなった場面。ここでは「全部賭ける (オールイン)」か「降りる」かの二択しかありません。答えはこのアプリが自分で計算した理論上の正解です。',
+  },
+  {
     id: 'weakness',
     label: '苦手',
-    drills: () => DRILLS,
+    // 苦手はモード横断で拾う。ハンド別成績が付くドリル (= カードを配るもの) が対象。
+    drills: () => [...DRILLS, ...HU_DRILLS],
     hint: '一度でも間違えて、まだ取り返せていない手だけを全スポット横断で出題する。ミス数より2回多く正解すると卒業。苦手が空のときは全スポットから普通に出る。',
     easyHint: 'あなたが前に間違えた手だけが出ます。同じ手をミスより2回多く正解できれば卒業して出なくなります。まだ間違いが無ければ、ふつうの出題になります。',
   },
@@ -74,7 +82,9 @@ const drawFresh = (modeId, focusKey = null, state = null) => {
 
   // 苦手モードは (スポット, ハンド) のペアを直接引く。プールが空なら通常の出題へ落ちる。
   if (mode.id === 'weakness' && !focusKey && state) {
-    const pool = weakHands(state)
+    // 苦手はドリルをまたいで貯まるので、モードの担当ドリルに絞ってから引く
+    const allowed = new Set(mode.drills().map((drill) => drill.key))
+    const pool = weakHands(state).filter((item) => allowed.has(item.drillKey))
     if (pool.length > 0) {
       const item = randomOf(pool)
       return { drillKey: item.drillKey, hand: item.hand, isReview: false }

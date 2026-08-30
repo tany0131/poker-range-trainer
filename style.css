@@ -1916,6 +1916,23 @@ details.misslog > summary:hover {
   text-anchor: middle;
 }
 
+/* ヘッズアップの残り持ち点。ここが浅いことが「なぜ押し引きだけなのか」の理由なので、
+   ポットと同じ強さで出す。 */
+.felt-stack {
+  fill: var(--text);
+  font-size: 10px;
+  font-weight: 700;
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 飛んできたオールインのチップ */
+.hu-chip {
+  fill: var(--bad-dim);
+  stroke: var(--bad);
+  stroke-width: 1;
+}
+
 /* 卓に落ちている額。bb を額として掴むための基準なので、常に見える強さで出す。 */
 .felt-pot {
   fill: var(--accent);

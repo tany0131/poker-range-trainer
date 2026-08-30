@@ -149,6 +149,8 @@ const VS_RFI_SPECS = {
 const ACTIONS = {
   raise: { id: 'raise', label: 'レイズ', hotkey: 'r', tone: 'aggro' },
   threebet: { id: 'threebet', label: '3ベット', hotkey: 'r', tone: 'aggro' },
+  // jam = 持ち点を全部入れる。浅いヘッズアップ (js/spots-hu.js) でだけ使う
+  jam: { id: 'jam', label: 'オールイン', hotkey: 'a', tone: 'aggro' },
   call: { id: 'call', label: 'コール', hotkey: 'c', tone: 'passive' },
   fold: { id: 'fold', label: 'フォールド', hotkey: 'f', tone: 'fold' },
 }
@@ -260,13 +262,9 @@ const buildSizingDrill = (spot) => {
 const SIZING_DRILLS = DRILLS.map(buildSizingDrill)
 
 // レンジのドリルとサイズのドリルは集計の性質が違う (サイズにはミスの向きが無い) ので、
-// 弱点分析が回る DRILLS とは分けたまま、キー引きだけ全部まとめる。
-const ALL_DRILLS = [...DRILLS, ...SIZING_DRILLS]
-const DRILL_BY_KEY = Object.fromEntries(ALL_DRILLS.map((d) => [d.key, d]))
-
-// そのドリルを出題できるモード。狙い撃ちや日替わりメニューから飛ぶときに使う。
-const defaultModeFor = (drill) =>
-  drill.type === 'sizing' ? 'sizing' : drill.type === 'rfi' ? 'rfi' : 'vsrfi'
+// 弱点分析が回る DRILLS とは分けたままにする。
+// キー引きの索引 (ALL_DRILLS / DRILL_BY_KEY) と defaultModeFor は、ドリルを定義する
+// 最後のファイルである js/spots-hu.js にある — ヘッズアップのぶんを含めるため。
 
 // レンジの「育ち方」。席が1つ進むと何が増えて何が消えるか。
 // UTG ⊂ HJ ⊂ CO ⊂ BTN は成り立つが、SB は BTN の上位互換ではない (消える手がある) ので
