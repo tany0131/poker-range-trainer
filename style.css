@@ -21,6 +21,13 @@
   box-sizing: border-box;
 }
 
+/* hidden 属性は常に勝たせる。display を持つクラス (.sw-toast の flex 等) が UA の
+   [hidden]{display:none} を上書きして「常に表示」になる事故の全体ガード。
+   個別の .foo[hidden] ガードはこの規則で冗長になったが、害はないので残している。 */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   padding: 24px 16px 64px;

@@ -1474,6 +1474,15 @@ check(nash10.jamPct > 50 && nash10.jamPct < 65, `ナッシュ 10bb: SB ジャム
 check(nash10.callPct > 30 && nash10.callPct < 45, `ナッシュ 10bb: BB コール ${nash10.callPct.toFixed(1)}% (公知 ~37%)`)
 check(nash10.trashCall < 0.05, 'ナッシュ 10bb: 72o はコールしない')
 
+// ---- hidden 属性が CSS に負けない ----
+{
+  const cssText = readFileSync(join(ROOT, 'style.css'), 'utf8')
+  check(
+    /\[hidden\]\s*\{[^}]*display:\s*none\s*!important/.test(cssText),
+    'style.css に [hidden] の全体ガードがある (display 持ちのクラスが hidden を潰さない)',
+  )
+}
+
 // ---- UI: エクイティ電卓 / ソルバー ----
 
 const calcUi = run(`(() => {
