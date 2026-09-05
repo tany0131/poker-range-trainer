@@ -62,6 +62,18 @@ const MODE_BY_ID = Object.fromEntries(MODES.map((m) => [m.id, m]))
 
 const randomOf = (list) => list[Math.floor(Math.random() * list.length)]
 
+// 元の配列は触らずに混ぜる (state を破壊的に更新しないのと同じ理由)。
+const shuffled = (list) => {
+  const out = [...list]
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const swap = out[i]
+    out[i] = out[j]
+    out[j] = swap
+  }
+  return out
+}
+
 // combos 重み付き抽選。実戦の出現頻度に合わせる (AKo は AKs の3倍出る)。
 const drawWeightedHand = () => {
   let roll = Math.random() * TOTAL_COMBOS
@@ -141,13 +153,22 @@ const gradeAnswer = (question, chosenAction) => {
   return { correctAction, isCorrect: chosenAction === correctAction }
 }
 
-// ---- レンジ穴埋めテスト ----
-// チャートの「境界線上」(隣のマスと答えが変わる場所) だけを隠す。
-// 中身が一様な領域を隠しても記憶のテストにならないため。
+// ---- そのスポットの「境界線上」の手 ----
+//
+// 隣のマス (上下左右) と答えが変わるハンド。中身が一様な領域は、覚えていなくても
+// 塗りつぶしで当たるので記憶のテストにならない。ここだけが知識の要る場所。
+//
+// RFI の BOUNDARY_HANDS (ポジションで答えが変わる 54 ハンド) とは別物で、
+// あちらは席をまたいだ比較、こちらは 1 スポットの中の境目。3ベットのスポットにも効く。
+// レンジ穴埋めテストが隠すマスと、試験モードの出題プールがこれを共有する。
+//
+// 全 44 ドリル × 169 ハンドを何度も舐めるので、ドリルごとに 1 回だけ計算して覚えておく
+// (答えはレンジから決まるので、実行中に変わらない)。
+const EDGE_HANDS_CACHE = {}
 
-const FILL_BLANK_COUNT = 12
+const edgeHandsOf = (drill) => {
+  if (EDGE_HANDS_CACHE[drill.key]) return EDGE_HANDS_CACHE[drill.key]
 
-const fillCandidates = (drill) => {
   const at = (row, col) => ALL_HANDS[row * 13 + col]
   const out = []
 
@@ -165,11 +186,18 @@ const fillCandidates = (drill) => {
       if (neighbors.some((neighbor) => drill.answerFor(neighbor) !== action)) out.push(hand)
     }
   }
+
+  EDGE_HANDS_CACHE[drill.key] = out
   return out
 }
 
+// ---- レンジ穴埋めテスト ----
+// 境界線上のマスだけを隠す。
+
+const FILL_BLANK_COUNT = 12
+
 const pickFillBlanks = (drill) => {
-  const pool = fillCandidates(drill)
+  const pool = [...edgeHandsOf(drill)]
   const count = Math.min(FILL_BLANK_COUNT, pool.length)
   const blanks = []
   for (let i = 0; i < count; i++) {

@@ -23,6 +23,11 @@ const TENDENCY_SKEW = 1.5
 const ERROR_TOO_LOOSE = 'tooLoose' // 正解より強く行った = 開けすぎ / 手が出すぎ
 const ERROR_TOO_TIGHT = 'tooTight' // 正解より弱く行った = 消極的
 
+// 試験モードで制限時間が切れたときの「答え」。人が選んだ action ではないので、
+// ミスの向き (強すぎ / 弱すぎ) を持たない — 何も選ばなかった、というだけ。
+// 成績としては不正解 (復習キューにもミス履歴にも入る)。
+const TIMEOUT_ACTION = 'timeout'
+
 // アクションの強さ。ミスの向きを判定するのに使う。
 const AGGRESSION = { fold: 0, call: 1, threebet: 2, raise: 2, jam: 2 }
 
@@ -236,8 +241,11 @@ const importStateText = (text) => {
 const isRangeDrill = (drillKey) => DRILL_BY_KEY[drillKey].type !== 'sizing'
 
 // ハンド分類ごとの集計を1問ぶん進める。サイズのドリルはそのまま返す。
+// 時間切れも数えない — 弱点分析が見ているのは「どちらへ外したか」で、
+// 何も選ばなかった問題を消極的なミスとして数えると傾向が嘘になる。
 const foldCategory = (state, drillKey, hand, chosenAction, correctAction, isCorrect) => {
   if (!isRangeDrill(drillKey)) return state.byCategory
+  if (chosenAction === TIMEOUT_ACTION) return state.byCategory
 
   const category = categoryOf(hand)
   const categoryStat = state.byCategory[drillKey][category.id]
@@ -274,12 +282,15 @@ const foldByHand = (state, drillKey, hand, isCorrect) => {
 }
 
 // 今日のログを1問ぶん進める。日付が変わっていればここで捨てて新しい日を始める。
-const foldDaily = (state, drillKey) => {
+// mode は「どのモードで答えたか」。日替わりメニューの進捗がこれを見るので、
+// 練習の外から来る出題 (試験モード) は自分のモード名を渡す — 練習中のモードを
+// そのまま書くと、やっていない課題が進んでしまう。
+const foldDaily = (state, drillKey, mode) => {
   const today = todayKey()
   const log = dailyLog(state)
   return {
     date: today,
-    log: [...log, { drillKey, mode: state.mode }].slice(-DAILY_LOG_CAP),
+    log: [...log, { drillKey, mode }].slice(-DAILY_LOG_CAP),
   }
 }
 
@@ -300,7 +311,7 @@ const foldReviewQueue = (state, { drillKey, hand, isCorrect, isReview, reviewStr
 // isReview / reviewStreak は出題側 (takeQuestion が返した question) から渡す。
 const recordAnswer = (
   state,
-  { drillKey, hand, chosenAction, correctAction, isCorrect, isReview = false, reviewStreak = 0 },
+  { drillKey, hand, chosenAction, correctAction, isCorrect, isReview = false, reviewStreak = 0, mode = state.mode },
 ) => {
   const drillStat = state.byDrill[drillKey]
 
@@ -334,7 +345,7 @@ const recordAnswer = (
     streak: nextStreak,
     history: nextHistory,
     reviewQueue: nextQueue,
-    daily: foldDaily(state, drillKey),
+    daily: foldDaily(state, drillKey, mode),
     missLog: nextMissLog,
   }
 }

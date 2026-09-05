@@ -110,8 +110,45 @@ const context = {
     createElement: makeElement,
     createElementNS: makeElement,
     createTextNode: (t) => ({ text: t }),
-    addEventListener() {},
+    // ホットキーは document に付く。ここを no-op にすると、キー入力の経路
+    // (試験中の f が裏の練習問題に入ってしまう事故) を検証できない。
+    addEventListener(type, fn) {
+      if (!documentListeners[type]) documentListeners[type] = []
+      documentListeners[type].push(fn)
+    },
   },
+}
+
+const documentListeners = {}
+
+// キーを1回押す。target = null なので isTypingTarget は false (文字入力中ではない)。
+const pressKey = (key) => {
+  for (const fn of documentListeners.keydown || []) fn({ key, target: null, preventDefault() {} })
+}
+
+// ---- 偽の時計 ----
+//
+// setTimeout を使うのは試験モードの残り時間だけ。実時間で待つと検証が遅く不安定になるので、
+// 予約を覚えておいて、テスト側が明示的に進める。1 回進める = EXAM_TICK_MS 1 刻み。
+let timerSeq = 0
+const timers = new Map()
+context.setTimeout = (fn) => {
+  timerSeq += 1
+  timers.set(timerSeq, fn)
+  return timerSeq
+}
+context.clearTimeout = (id) => timers.delete(id)
+
+// 予約されている一番古いものから n 回だけ発火する。実際に進んだ回数を返す。
+const runTimers = (n) => {
+  for (let i = 0; i < n; i++) {
+    const next = timers.keys().next()
+    if (next.done) return i
+    const fn = timers.get(next.value)
+    timers.delete(next.value)
+    fn()
+  }
+  return n
 }
 context.window = context // AudioContext は未定義 → 音は自動的に no-op
 
@@ -144,7 +181,7 @@ const run = (code) => vm.runInContext(code, context)
 // 以降の UI チェックが今までどおり中身を見られるようにする。
 
 const LAZY_SECTIONS = [
-  'growth', 'reference', 'fill', 'bluffq', 'equity',
+  'growth', 'reference', 'fill', 'bluffq', 'bluffpick', 'exam', 'equity',
   'calc', 'nash', 'faq', 'mistakes', 'help', 'glossary',
 ]
 
@@ -159,7 +196,9 @@ check(
     run('el.nashSbGrid.children.length') === 0 &&
     run('el.glossaryBody.children.length') === 0 &&
     run('fill === null') &&
-    run('bluff === null'),
+    run('bluff === null') &&
+    run('bluffPick === null') &&
+    run('exam === null'),
   '起動時: 畳んだセクションは描かれない',
 )
 openSection('equity')
@@ -170,9 +209,12 @@ check(
 )
 for (const id of LAZY_SECTIONS) openSection(id)
 check(
-  run('fill !== null') && run('bluff !== null') && run('el.glossaryBody.children.length') > 0,
+  run('fill !== null') && run('bluff !== null') && run('bluffPick !== null') &&
+    run('el.glossaryBody.children.length') > 0,
   '全セクションを開けば残りも描かれる',
 )
+// 試験は「開いただけ」では始まらない (開始ボタンを押すまで問題を配らない)
+check(run('exam === null') && run('el.examStart.hidden') === false, '試験モード: 開いても始まらず、開始ボタンだけが出る')
 
 // ---- RFI レンジ ----
 
@@ -1027,7 +1069,7 @@ const fillCandidateCheck = run(`(() => {
   const bad = []
   for (const drill of DRILLS) {
     const at = (r, c) => ALL_HANDS[r * 13 + c]
-    const candidates = new Set(fillCandidates(drill))
+    const candidates = new Set(edgeHandsOf(drill))
     for (let r = 0; r < 13; r++) {
       for (let c = 0; c < 13; c++) {
         const hand = at(r, c)
@@ -1049,7 +1091,7 @@ const fillPickCheck = run(`(() => {
   const results = []
   for (const drill of DRILLS) {
     const blanks = pickFillBlanks(drill)
-    const candidates = new Set(fillCandidates(drill))
+    const candidates = new Set(edgeHandsOf(drill))
     results.push({
       key: drill.key,
       count: blanks.length,
@@ -2212,7 +2254,7 @@ check(run(`searchGlossary('ぽよよん').length`) === 0, '当たらない検索
 
 // 画面に出てくる言葉が用語集に載っているか (「見出しだけ知っていて中身を知らない」を作らない)
 const glossaryText = run(`JSON.stringify(GLOSSARY)`)
-for (const term of ['RFI', '3ベット', 'IP', 'OOP', 'combos', 'ドミネート', 'ブロッカー', 'ホイール', '境界ハンド', 'エクイティ', 'ポットオッズ', '混合戦略']) {
+for (const term of ['RFI', '3ベット', 'IP', 'OOP', 'combos', 'ドミネート', 'ブロッカー', 'ホイール', '境界ハンド', 'エクイティ', 'ポットオッズ', '混合戦略', 'アイソレート']) {
   check(glossaryText.includes(term), `用語集に「${term}」がある`)
 }
 
@@ -3272,6 +3314,357 @@ check(
   manifestSource.icons.some((icon) => (icon.purpose || '').includes('maskable')),
   'PWA: maskable のアイコンがある',
 )
+
+const EXAM_COUNT = run('EXAM_QUESTION_COUNT')
+const DRILL_COUNT = run('DRILLS.length')
+
+// ---- 試験モード (19 スポットの境界線上の手を 20 問・1問 5 秒) ----
+
+const examShape = run(`(() => {
+  const runs = []
+  for (let i = 0; i < 30; i++) {
+    const questions = buildExamQuestions()
+    runs.push({
+      count: questions.length,
+      spots: new Set(questions.map((q) => q.drillKey)).size,
+      distinct: new Set(questions.map((q) => q.drillKey + '|' + q.hand)).size,
+      allEdge: questions.every((q) => edgeHandsOf(DRILL_BY_KEY[q.drillKey]).includes(q.hand)),
+      allRange: questions.every((q) => DRILLS.some((d) => d.key === q.drillKey)),
+    })
+  }
+  return runs
+})()`)
+check(examShape.every((r) => r.count === EXAM_COUNT), `試験: 毎回 ${EXAM_COUNT} 問`, examShape.map((r) => r.count).join(','))
+check(
+  examShape.every((r) => r.spots === DRILL_COUNT),
+  `試験: 19 スポットを必ず全部含む`,
+  examShape.map((r) => r.spots).join(','),
+)
+check(examShape.every((r) => r.distinct === EXAM_COUNT), '試験: 同じ (スポット, ハンド) は 2 回出ない')
+check(examShape.every((r) => r.allEdge), '試験: 出題は全部そのスポットの境界線上の手')
+check(examShape.every((r) => r.allRange), '試験: サイズ / ヘッズアップは混ぜない (カードを配る 19 スポットだけ)')
+
+// 走行中の画面と、時間切れの扱い
+run('startExam()')
+const examStarted = run(`({
+  hidden: [el.examStart.hidden, el.examRun.hidden, el.examResult.hidden],
+  actions: el.examActions.children.length,
+  cards: el.examCards.children.length,
+  progress: el.examProgress.textContent,
+  clock: el.examClock.textContent,
+  spot: el.examSpot.textContent,
+  hand: el.examHand.textContent,
+})`)
+check(
+  examStarted.hidden[0] === true && examStarted.hidden[1] === false && examStarted.hidden[2] === true,
+  '試験: 始めると出題だけが出る (開始ボタンと結果は隠れる)',
+  JSON.stringify(examStarted.hidden),
+)
+check(
+  examStarted.actions >= 2 && examStarted.cards === 2 && examStarted.spot.length > 0,
+  '試験: カード 2 枚・状況・選択肢が描かれる',
+  JSON.stringify({ actions: examStarted.actions, cards: examStarted.cards }),
+)
+check(
+  examStarted.progress === `1 / ${EXAM_COUNT} 問目` && examStarted.clock === '残り 5.0 秒',
+  '試験: 進み具合と残り時間が出る',
+  `${examStarted.progress} / ${examStarted.clock}`,
+)
+
+const ticksToTimeout = run('EXAM_LIMIT_MS / EXAM_TICK_MS')
+run('var probeButton = el.examActions.children[0]; var probeCard = el.examCards.children[0]')
+runTimers(ticksToTimeout - 1)
+const beforeTimeout = run(`({
+  index: exam.index,
+  clock: el.examClock.textContent,
+  hurry: el.examBar.classList.contains('hurry'),
+  resultHidden: el.examResult.hidden,
+})`)
+check(beforeTimeout.index === 0, '試験: 5 秒経つまでは同じ問題のまま', String(beforeTimeout.index))
+check(beforeTimeout.hurry === true, '試験: 残り少なくなるとバーが変わる')
+check(beforeTimeout.resultHidden === true, '試験: 走行中は結果を出さない')
+check(
+  run('probeButton === el.examActions.children[0] && probeCard === el.examCards.children[0]'),
+  '試験: 時計が進んでもカードとボタンは作り直さない (押している最中に差し替わらない)',
+)
+
+runTimers(1)
+const afterTimeout = run(`({
+  index: exam.index,
+  last: exam.answers[exam.answers.length - 1],
+  clock: el.examClock.textContent,
+  marked: el.examActions.children.some((b) => [...b.classList._set].some((c) => c.startsWith('is-'))),
+  resultHidden: el.examResult.hidden,
+})`)
+check(
+  afterTimeout.index === 1 && afterTimeout.last.chosen === run('TIMEOUT_ACTION') && afterTimeout.last.isCorrect === false,
+  '試験: 時間切れは不正解として次の問題へ進む',
+  JSON.stringify(afterTimeout.last),
+)
+check(afterTimeout.clock === '残り 5.0 秒', '試験: 次の問題で時計が戻る', afterTimeout.clock)
+check(afterTimeout.marked === false, '試験: 答えても正誤の色を付けない (最後までノーヒント)')
+
+// ホットキーは試験に効く。裏で待っている練習問題を巻き添えにしない。
+const examHotkey = run(`(() => {
+  const question = examCurrent(exam)
+  const drill = DRILL_BY_KEY[question.drillKey]
+  const key = drill.actions[0].hotkey
+  const before = { index: exam.index, answered, practiceAsked: totalAsked(state) }
+  return { key, before, drillKey: question.drillKey }
+})()`)
+pressKey(examHotkey.key)
+const afterHotkey = run(`({ index: exam.index, answered, practiceAsked: totalAsked(state) })`)
+check(
+  afterHotkey.index === examHotkey.before.index + 1,
+  '試験: ホットキーで試験の問題が進む',
+  `${examHotkey.before.index} → ${afterHotkey.index}`,
+)
+check(
+  afterHotkey.answered === false && afterHotkey.practiceAsked === examHotkey.before.practiceAsked,
+  '試験中のホットキーは裏の練習問題に入らない',
+)
+
+// 中止したぶんは記録しない
+const abortCheck = run(`(() => {
+  const before = { asked: totalAsked(state), misses: state.missLog.length }
+  abortExam()
+  return {
+    exam,
+    startHidden: el.examStart.hidden,
+    after: { asked: totalAsked(state), misses: state.missLog.length },
+    before,
+  }
+})()`)
+check(abortCheck.exam === null && abortCheck.startHidden === false, '試験: 中止すると開始画面に戻る')
+check(
+  abortCheck.after.asked === abortCheck.before.asked && abortCheck.after.misses === abortCheck.before.misses,
+  '試験: 中止したぶんは成績に入れない',
+  JSON.stringify(abortCheck.after),
+)
+check(runTimers(3) === 0, '試験: 中止で時計が止まる (裏で時間切れが進まない)')
+
+// カードを閉じたら中止する (見えないところで時間切れが積み上がらない)
+const examClosed = run(`(() => {
+  startExam()
+  const before = { asked: totalAsked(state), misses: state.missLog.length }
+  return before
+})()`)
+const examSection = elements.get('exam')
+examSection.open = false
+examSection.dispatch('toggle')
+const afterClose = run(`({ exam, asked: totalAsked(state), misses: state.missLog.length })`)
+check(afterClose.exam === null, '試験: カードを閉じたら中止する')
+check(
+  afterClose.asked === examClosed.asked && afterClose.misses === examClosed.misses,
+  '試験: 閉じて中止したぶんも記録しない',
+)
+check(runTimers(3) === 0, '試験: 閉じると時計が止まる')
+examSection.open = true
+
+// 全問正解で走り切る
+const examPerfect = run(`(() => {
+  const before = { asked: totalAsked(state), misses: state.missLog.length, queue: state.reviewQueue.length }
+  startExam()
+  let guard = 0
+  while (examCurrent(exam) && guard++ < 100) {
+    const question = examCurrent(exam)
+    answerExam(DRILL_BY_KEY[question.drillKey].answerFor(question.hand))
+  }
+  return {
+    result: exam.result,
+    score: el.examScore.textContent,
+    misses: el.examMisses.children.length,
+    hidden: [el.examStart.hidden, el.examRun.hidden, el.examResult.hidden],
+    after: { asked: totalAsked(state), misses: state.missLog.length, queue: state.reviewQueue.length },
+    before,
+  }
+})()`)
+check(
+  examPerfect.result.total === EXAM_COUNT && examPerfect.result.correct === EXAM_COUNT,
+  '試験: 全問正解で走り切れる',
+  JSON.stringify({ total: examPerfect.result.total, correct: examPerfect.result.correct }),
+)
+check(
+  examPerfect.hidden[2] === false && examPerfect.score.includes(`${EXAM_COUNT} 問中 ${EXAM_COUNT} 問正解`),
+  '試験: 終わるとスコアが出る',
+  examPerfect.score,
+)
+check(
+  examPerfect.after.asked === examPerfect.before.asked + EXAM_COUNT,
+  '試験: 20 問ぶんが成績に入る',
+  `${examPerfect.before.asked} → ${examPerfect.after.asked}`,
+)
+check(
+  examPerfect.after.misses === examPerfect.before.misses && examPerfect.after.queue === examPerfect.before.queue,
+  '試験: 全問正解ならミス履歴も復習キューも増えない',
+)
+check(runTimers(3) === 0, '試験: 終わったら時計が止まる')
+
+// 全問間違えて走り切る (ミスの行き先を見る)
+const examAllWrong = run(`(() => {
+  const before = { misses: state.missLog.length, queue: state.reviewQueue.length }
+  startExam()
+  let guard = 0
+  const asked = []
+  while (examCurrent(exam) && guard++ < 100) {
+    const question = examCurrent(exam)
+    const drill = DRILL_BY_KEY[question.drillKey]
+    const correct = drill.answerFor(question.hand)
+    asked.push({ drillKey: question.drillKey, hand: question.hand })
+    answerExam(drill.actions.find((a) => a.id !== correct).id)
+  }
+  const queued = new Set(state.reviewQueue.map((item) => item.drillKey + '|' + item.hand))
+  return {
+    result: exam.result,
+    missLines: el.examMisses.children.length,
+    firstLine: el.examMisses.children[0].textContent,
+    after: { misses: state.missLog.length, queue: state.reviewQueue.length },
+    before,
+    allQueued: asked.every((q) => queued.has(q.drillKey + '|' + q.hand)),
+    dailyModes: new Set(state.daily.log.slice(-EXAM_QUESTION_COUNT).map((entry) => entry.mode)),
+  }
+})()`)
+check(examAllWrong.result.correct === 0 && examAllWrong.missLines === EXAM_COUNT, '試験: 落とした問題が全部並ぶ', String(examAllWrong.missLines))
+check(
+  examAllWrong.after.misses === examAllWrong.before.misses + EXAM_COUNT,
+  '試験: ミスはミス履歴に入る',
+  `${examAllWrong.before.misses} → ${examAllWrong.after.misses}`,
+)
+check(examAllWrong.allQueued, '試験: 落とした手は復習キューに入る')
+check(
+  examAllWrong.firstLine.includes('と答えた (正解'),
+  '試験: 結果に「何と答えたか / 正解は何か」が出る',
+  examAllWrong.firstLine,
+)
+check(
+  [...examAllWrong.dailyModes].join(',') === 'exam',
+  '試験: 今日のログには exam として残る (練習中のモードの進捗を進めない)',
+  [...examAllWrong.dailyModes].join(','),
+)
+
+// 時間切れ 1 問ぶんの記録の中身 (弱点分析にだけ入らない)
+const timeoutRecord = run(`(() => {
+  const key = 'RFI_UTG'
+  const hand = 'A5o'
+  const next = recordAnswer(freshState(), {
+    drillKey: key,
+    hand,
+    chosenAction: TIMEOUT_ACTION,
+    correctAction: 'fold',
+    isCorrect: false,
+    mode: 'exam',
+  })
+  const category = categoryOf(hand).id
+  return {
+    asked: next.byDrill[key].asked,
+    categoryAsked: next.byCategory[key][category].asked,
+    miss: next.missLog[next.missLog.length - 1],
+    queue: next.reviewQueue.length,
+    byHand: next.byHand[key][hand],
+    text: missAnswerText(DRILL_BY_KEY[key], TIMEOUT_ACTION, 'fold'),
+  }
+})()`)
+check(timeoutRecord.asked === 1 && timeoutRecord.queue === 1, '時間切れ: 出題数に数え、復習キューにも入れる')
+check(
+  timeoutRecord.categoryAsked === 0,
+  '時間切れ: 弱点分析 (ミスの向き) には数えない — 何も選んでいないので向きが無い',
+  String(timeoutRecord.categoryAsked),
+)
+check(timeoutRecord.byHand.a === 1 && timeoutRecord.byHand.w === 1, '時間切れ: ハンド別成績ではミス 1 回')
+check(
+  timeoutRecord.miss.chosen === run('TIMEOUT_ACTION') && timeoutRecord.text === '時間切れ (正解 フォールド)',
+  '時間切れ: ミス履歴には「時間切れ」と出る (undefined にしない)',
+  timeoutRecord.text,
+)
+
+// ---- どれがブラフか (3ベットの 4択) ----
+
+const pickShape = run(`(() => {
+  const bad = []
+  let questions = 0
+  for (const drill of BLUFF_PICK_DRILLS) {
+    for (const hand of bluffPickSetsOf(drill).bluffs) {
+      const view = buildBluffPick(drill, hand)
+      questions += 1
+      const decoys = view.choices.filter((choice) => choice !== hand)
+
+      if (view.choices.length !== 4) bad.push('count:' + drill.key + ':' + hand)
+      if (new Set(view.choices).size !== 4) bad.push('dup:' + drill.key + ':' + hand)
+      if (!view.choices.includes(hand)) bad.push('missing:' + drill.key + ':' + hand)
+      if (threebetRoleOf(drill, hand) !== 'bluff') bad.push('role:' + drill.key + ':' + hand)
+      for (const decoy of decoys) {
+        if (drill.answerFor(decoy) !== 'fold') bad.push('notfold:' + drill.key + ':' + decoy)
+        if (!looksLike(decoy, hand)) bad.push('unlike:' + drill.key + ':' + hand + '/' + decoy)
+      }
+    }
+  }
+  return { bad, questions, drills: BLUFF_PICK_DRILLS.length }
+})()`)
+check(pickShape.bad.length === 0, '4択: 正解 = ブラフ枠の 3ベット / 外れ 3 つ = 似た見た目のフォールド', pickShape.bad.slice(0, 3).join(','))
+check(
+  pickShape.drills === run('VS_RFI_DRILLS.length'),
+  '4択: vs RFI の 14 スポット全部で問題が作れる',
+  `${pickShape.drills}/${run('VS_RFI_DRILLS.length')}`,
+)
+check(pickShape.questions > 50, '4択: 出題できるハンドが十分ある', `${pickShape.questions} 通り`)
+
+const pickFlow = run(`(() => {
+  nextBluffPick()
+  const spot = el.bluffPickSpot.textContent
+  const choices = el.bluffPickChoices.children.map((b) => b.dataset.hand)
+  const wrong = choices.find((choice) => choice !== bluffPick.hand)
+
+  answerBluffPick(wrong)
+  const afterWrong = {
+    marks: el.bluffPickChoices.children.map((b) => [b.dataset.hand, [...b.classList._set].filter((c) => c.startsWith('is-'))]),
+    resultHidden: el.bluffPickResult.hidden,
+    resultText: el.bluffPickResult.textContent,
+    locked: (answerBluffPick(bluffPick.hand), bluffPick.score.asked),
+  }
+
+  nextBluffPick()
+  const afterNext = { chosen: bluffPick.chosen, resultHidden: el.bluffPickResult.hidden, kept: bluffPick.score.asked }
+  answerBluffPick(bluffPick.hand)
+
+  return { spot, choices, afterWrong, afterNext, score: bluffPick.score }
+})()`)
+check(pickFlow.choices.length === 4, '4択: ボタンが 4 つ出る', String(pickFlow.choices.length))
+check(pickFlow.spot.includes('ブラフ枠の 3ベット'), '4択: 出題文が出る', pickFlow.spot.slice(0, 40))
+check(
+  pickFlow.afterWrong.marks.some(([, cls]) => cls.includes('is-correct')) &&
+    pickFlow.afterWrong.marks.some(([, cls]) => cls.includes('is-wrong')),
+  '4択: 不正解で正解が緑・選んだ手が赤になる',
+)
+check(
+  pickFlow.afterWrong.resultHidden === false && pickFlow.afterWrong.resultText.includes('フォールド'),
+  '4択: 答えると「外れはフォールド」と理由が出る',
+  pickFlow.afterWrong.resultText.slice(0, 50),
+)
+check(pickFlow.afterWrong.locked === 1, '4択: 二度目の回答は数えない')
+check(
+  pickFlow.afterNext.chosen === null && pickFlow.afterNext.resultHidden === true && pickFlow.afterNext.kept === 1,
+  '4択: 次の問題でリセットされ、スコアは持ち越す',
+)
+check(pickFlow.score.asked === 2 && pickFlow.score.correct === 1, '4択: スコアが正しく数えられる', JSON.stringify(pickFlow.score))
+
+// ---- 用語: アイソレート ----
+
+check(
+  run(`searchGlossary('アイソレート').reduce((n, g) => n + g.terms.length, 0)`) > 0,
+  '用語: アイソレートが引ける',
+)
+check(
+  run(`GLOSSARY_ALIASES.some((a) => a.alias === 'アイソレート')`),
+  '用語: アイソレートが本文リンクの別名になる',
+)
+check(
+  run(`findTermSpans('リンパーをアイソレートする').some((s) => s.alias === 'アイソレート')`),
+  '用語: 本文の「アイソレート」がリンクになる',
+)
+const isolateDef = run(`GLOSSARY.flatMap((g) => g.terms).find((t) => t.term.includes('アイソレート')).def`)
+check(isolateDef.includes('リンプ'), '用語: アイソレートの説明がリンプとつながっている')
+check(isolateDef.includes('bb'), '用語: アイソレートにサイズの目安がある')
+
 
 console.log(failures === 0 ? '\nall checks passed' : `\n${failures} check(s) failed`)
 process.exit(failures === 0 ? 0 : 1)

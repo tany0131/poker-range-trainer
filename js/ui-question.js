@@ -130,30 +130,7 @@ const renderHuTable = (drill) => {
 
 // ---- カード ----
 
-const renderCards = (hand) => {
-  el.cards.innerHTML = ''
-  for (const card of dealCards(hand)) {
-    const node = document.createElement('div')
-    node.className = `playing-card ${card.suit.color}`
-
-    const corner = document.createElement('div')
-    corner.className = 'corner'
-    corner.textContent = card.rank
-
-    const pip = document.createElement('span')
-    pip.className = 'pip'
-    pip.textContent = card.suit.glyph
-    corner.appendChild(pip)
-
-    const center = document.createElement('div')
-    center.className = 'center'
-    center.textContent = card.suit.glyph
-
-    node.appendChild(corner)
-    node.appendChild(center)
-    el.cards.appendChild(node)
-  }
-}
+const renderCards = (hand) => renderCardsInto(el.cards, hand)
 
 const renderStreak = (state) => {
   const { current, best } = state.streak
@@ -164,35 +141,7 @@ const renderStreak = (state) => {
 
 // ---- 出題 ----
 
-const renderActions = (drill, onAnswer) => {
-  el.actions.innerHTML = ''
-  for (const action of drill.actions) {
-    const button = document.createElement('button')
-    button.className = `action-btn tone-${action.tone}`
-    button.dataset.action = action.id
-
-    const label = document.createElement('span')
-    label.textContent = action.label
-    button.appendChild(label)
-
-    // サイズの選択肢には「実際に手元から出る額」を添える。
-    // ブラインドはすでに払い込んでいるので、10bb にするのに 10bb 出すわけではない。
-    if (action.tone === 'size') {
-      const sub = document.createElement('span')
-      sub.className = 'action-sub'
-      sub.textContent = `追加 ${fmtBb(chipsToPut(drill, action.id))}`
-      button.appendChild(sub)
-    }
-
-    const key = document.createElement('span')
-    key.className = 'key'
-    key.textContent = action.hotkey.toUpperCase()
-    button.appendChild(key)
-
-    button.addEventListener('click', () => onAnswer(action.id))
-    el.actions.appendChild(button)
-  }
-}
+const renderActions = (drill, onAnswer) => renderActionsInto(el.actions, drill, onAnswer)
 
 const setActionsDisabled = (disabled) => {
   for (const button of el.actions.children) button.disabled = disabled
@@ -232,17 +181,7 @@ const renderHandArea = (drill, hand) => {
   el.cards.hidden = false
   renderCards(hand)
 
-  el.hand.innerHTML = ''
-  const base = document.createElement('span')
-  base.textContent = isPair(hand) ? hand : hand.slice(0, 2)
-  el.hand.appendChild(base)
-  if (!isPair(hand)) {
-    const suffix = document.createElement('span')
-    suffix.className = 'suffix'
-    suffix.textContent = hand[2]
-    el.hand.appendChild(suffix)
-  }
-
+  renderHandTextInto(el.hand, hand)
   el.combos.textContent = describeHand(hand)
 }
 

@@ -125,7 +125,7 @@ const missLogRow = (state, entry) => {
 
   const summary = document.createElement('summary')
   const handText = entry.hand === null ? 'サイズ' : entry.hand
-  summary.textContent = `${fmtMissDate(entry.d)} · ${drill.label} · ${handText} — ${actionLabelOf(drill, entry.chosen)} と答えた (正解 ${actionLabelOf(drill, entry.correct)})`
+  summary.textContent = `${fmtMissDate(entry.d)} · ${drill.label} · ${handText} — ${missAnswerText(drill, entry.chosen, entry.correct)}`
   item.appendChild(summary)
 
   // 開いたときの中身は、間違えた時のコーチと同じ「なぜ」+「覚え方」(用語リンク付き)

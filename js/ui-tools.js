@@ -1,5 +1,5 @@
 // 自分で手を動かす練習ツールの描画。定石ビューア・レンジ穴埋めテスト・
-// エクイティ電卓・プッシュ/フォールド ソルバー・役割クイズ。
+// エクイティ電卓・プッシュ/フォールド ソルバー・3ベットの 2 つのクイズ (役割 / どれがブラフか)。
 
 // ---- 定石ビューア ----
 
@@ -304,4 +304,51 @@ const renderBluff = (state, view, handlers) => {
 
   const { asked, correct } = view.score
   el.bluffScore.textContent = asked > 0 ? `今回のセッション: ${asked} 問中 ${correct} 問正解` : ''
+}
+
+// ---- どれがブラフか (3ベットの 4択) ----
+//
+// 役割クイズの逆向き。見た目の似た 4 つから「3ベットで返す手」を選ぶ。
+// 外れは全部フォールド帯なので、正解は必ず 1 つ。
+// view = { drillKey, hand, choices, chosen, score: { asked, correct } }
+
+const renderBluffPick = (state, view, handlers) => {
+  const drill = DRILL_BY_KEY[view.drillKey]
+
+  el.bluffPickSpot.textContent =
+    `${drill.raiser} がレイズ。${drill.hero} のあなた。この4つのうち、ブラフ枠の 3ベットで返すのはどれ？ (残り3つはフォールド)`
+
+  el.bluffPickChoices.innerHTML = ''
+  for (const hand of view.choices) {
+    const button = document.createElement('button')
+    button.className = 'action-btn tone-aggro'
+    button.dataset.hand = hand
+    button.textContent = hand
+    button.disabled = view.chosen !== null
+
+    if (view.chosen !== null) {
+      if (hand === view.hand) button.classList.add('is-correct')
+      else if (hand === view.chosen) button.classList.add('is-wrong')
+      else button.classList.add('is-muted')
+    }
+
+    button.addEventListener('click', () => handlers.onAnswer(hand))
+    el.bluffPickChoices.appendChild(button)
+  }
+
+  if (view.chosen !== null) {
+    // 「なぜこれが選ばれたのか」はコーチ文がそのまま答えになる。
+    // 外れ 3 つは降りる手だと明示する — 「惜しかった」と誤解させないため。
+    const advice = coachFor(drill, view.hand, state.easyMode)
+    const others = view.choices.filter((hand) => hand !== view.hand).join(' / ')
+    el.bluffPickResult.hidden = false
+    renderTermText(el.bluffPickResult, `${view.hand} が 3ベット。${others} はこのスポットではフォールド。${advice.why}`)
+    el.bluffPickNext.hidden = false
+  } else {
+    el.bluffPickResult.hidden = true
+    el.bluffPickNext.hidden = true
+  }
+
+  const { asked, correct } = view.score
+  el.bluffPickScore.textContent = asked > 0 ? `今回のセッション: ${asked} 問中 ${correct} 問正解` : ''
 }

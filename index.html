@@ -30,6 +30,7 @@
         <a href="#daily">今日の特訓</a>
         <a href="#reference">定石</a>
         <a href="#fill">穴埋め</a>
+        <a href="#exam">試験</a>
         <a href="#equity">勝率</a>
         <a href="#calc">電卓</a>
         <a href="#nash">ソルバー</a>
@@ -301,6 +302,63 @@
 
           <button class="fill-btn bluff-next" id="bluff-next" hidden>次の問題</button>
           <p class="stats-note" id="bluff-score"></p>
+        </div>
+      </details>
+
+      <details class="card bluffpick" id="bluffpick">
+        <summary>どれがブラフか — 3ベットの4択</summary>
+        <div class="bluffq-wrap">
+          <p class="reference-lead">
+            役割クイズの逆向きです。似た見た目の手を4つ並べるので、
+            <strong>ブラフ枠の 3ベットで返す手</strong>を1つ選んでください。残りの3つはこのスポットでは降ります。
+            ブラフ枠が何で選ばれているのか (A を1枚持っている・スーテッドで化ける・つながっている) を、
+            降りる手との差で覚えるための問題です。
+          </p>
+
+          <p class="bluff-spot" id="bluffpick-spot"></p>
+          <div class="actions bluffpick-choices" id="bluffpick-choices"></div>
+          <p class="fill-result" id="bluffpick-result" hidden></p>
+
+          <button class="fill-btn bluff-next" id="bluffpick-next" hidden>次の問題</button>
+          <p class="stats-note" id="bluffpick-score"></p>
+        </div>
+      </details>
+
+      <details class="card exam" id="exam">
+        <summary>試験モード — 20問ノーヒント・1問5秒</summary>
+        <div class="exam-wrap">
+          <p class="reference-lead" id="exam-lead">
+            19 スポット全部から、<strong>境界線上の手</strong> (隣のマスと答えが変わる手) だけを 20 問。
+            1 問 <strong>5 秒</strong>で、切れたら不正解。<strong>正誤は最後にまとめて</strong>出ます —
+            途中で答えを見せると残りのヒントになるからです。結果は普通の練習と同じように成績に入り、
+            落とした手は復習キューとミス履歴に入ります。
+          </p>
+
+          <div class="exam-start" id="exam-start">
+            <button class="fill-btn" id="exam-begin">試験を始める (20問)</button>
+          </div>
+
+          <div class="exam-run" id="exam-run" hidden>
+            <div class="exam-head">
+              <span class="exam-progress" id="exam-progress"></span>
+              <span class="exam-clock" id="exam-clock"></span>
+            </div>
+            <div class="exam-meter"><div class="exam-meter-bar" id="exam-bar"></div></div>
+
+            <p class="bluff-spot" id="exam-spot"></p>
+            <div class="cards" id="exam-cards"></div>
+            <div class="hand-text" id="exam-hand"></div>
+            <div class="actions" id="exam-actions"></div>
+
+            <button class="fill-btn exam-abort" id="exam-abort">中止する (記録しない)</button>
+          </div>
+
+          <div class="exam-result" id="exam-result" hidden>
+            <p class="exam-score" id="exam-score"></p>
+            <div class="exam-misses" id="exam-misses"></div>
+            <p class="stats-note">落とした手は復習キューとミス履歴に入りました。</p>
+            <button class="fill-btn" id="exam-again">もう一度</button>
+          </div>
         </div>
       </details>
 
@@ -1051,6 +1109,8 @@
     <script src="js/matchups.js"></script>
     <script src="js/gto.js"></script>
     <script src="js/quiz.js"></script>
+    <script src="js/exam.js"></script>
+    <script src="js/bluff-pick.js"></script>
     <script src="js/audio.js"></script>
     <script src="js/ui-core.js"></script>
     <script src="js/ui-question.js"></script>
@@ -1058,6 +1118,7 @@
     <script src="js/ui-learn.js"></script>
     <script src="js/ui-sheet.js"></script>
     <script src="js/ui-tools.js"></script>
+    <script src="js/ui-exam.js"></script>
     <script src="js/main.js"></script>
 
     <!-- PWA の登録。http(s) で開かれたときだけ動く。

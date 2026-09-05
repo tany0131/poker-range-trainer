@@ -111,6 +111,7 @@ h1 {
 #daily,
 #reference,
 #fill,
+#exam,
 #equity,
 #calc,
 #nash,
@@ -1357,6 +1358,82 @@ tbody tr:last-child td {
   margin-top: 10px;
 }
 
+/* ---- どれがブラフか (4択) ---- */
+
+/* 4つ並ぶので 1 つあたりを細くする (アクションの3択より狭い) */
+.bluffpick-choices .action-btn {
+  padding: 14px 2px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 試験モード ---- */
+
+.exam-wrap {
+  padding: 0 20px 20px;
+}
+
+.exam-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.exam-clock {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* 残り時間のバー。数字だけだと切迫感が伝わらない */
+.exam-meter {
+  height: 6px;
+  margin: 6px 0 14px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.exam-meter-bar {
+  height: 100%;
+  width: 100%;
+  background: var(--call);
+  transition: width 0.1s linear;
+}
+
+.exam-meter-bar.hurry {
+  background: var(--bad);
+}
+
+.exam-abort {
+  width: 100%;
+  margin-top: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.exam-score {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.exam-miss {
+  margin: 0 0 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  font-size: 13px;
+}
+
+.exam-start[hidden],
+.exam-run[hidden],
+.exam-result[hidden] {
+  display: none;
+}
+
 /* ---- 勝率表 ---- */
 
 .equity-wrap {
@@ -1730,6 +1807,8 @@ details.mistakes,
 details.equity,
 details.fill,
 details.bluffq,
+details.bluffpick,
+details.exam,
 details.calc,
 details.nash,
 details.misslog {
@@ -1747,6 +1826,8 @@ details.mistakes > summary,
 details.equity > summary,
 details.fill > summary,
 details.bluffq > summary,
+details.bluffpick > summary,
+details.exam > summary,
 details.calc > summary,
 details.nash > summary,
 details.misslog > summary {
@@ -1774,6 +1855,8 @@ details.mistakes > summary::-webkit-details-marker,
 details.equity > summary::-webkit-details-marker,
 details.fill > summary::-webkit-details-marker,
 details.bluffq > summary::-webkit-details-marker,
+details.bluffpick > summary::-webkit-details-marker,
+details.exam > summary::-webkit-details-marker,
 details.calc > summary::-webkit-details-marker,
 details.nash > summary::-webkit-details-marker,
 details.misslog > summary::-webkit-details-marker {
@@ -1791,6 +1874,8 @@ details.mistakes > summary::after,
 details.equity > summary::after,
 details.fill > summary::after,
 details.bluffq > summary::after,
+details.bluffpick > summary::after,
+details.exam > summary::after,
 details.calc > summary::after,
 details.nash > summary::after,
 details.misslog > summary::after {
@@ -1812,6 +1897,8 @@ details.mistakes[open] > summary::after,
 details.equity[open] > summary::after,
 details.fill[open] > summary::after,
 details.bluffq[open] > summary::after,
+details.bluffpick[open] > summary::after,
+details.exam[open] > summary::after,
 details.calc[open] > summary::after,
 details.nash[open] > summary::after,
 details.misslog[open] > summary::after {
@@ -1829,6 +1916,8 @@ details.mistakes > summary:hover,
 details.equity > summary:hover,
 details.fill > summary:hover,
 details.bluffq > summary:hover,
+details.bluffpick > summary:hover,
+details.exam > summary:hover,
 details.calc > summary:hover,
 details.nash > summary:hover,
 details.misslog > summary:hover {
@@ -2065,6 +2154,7 @@ button {
   .equity-wrap,
   .fill-wrap,
   .bluffq-wrap,
+  .exam-wrap,
   .calc-wrap,
   .nash-wrap,
   .misslog-wrap {
@@ -2082,6 +2172,10 @@ button {
   details.equity > summary,
   details.fill > summary,
   details.bluffq > summary,
+  details.bluffpick > summary,
+  details.exam > summary,
+details.bluffpick > summary,
+details.exam > summary,
   details.calc > summary,
   details.nash > summary,
   details.misslog > summary {
