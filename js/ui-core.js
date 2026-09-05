@@ -17,6 +17,8 @@ const ACTION_LABELS = {
   threebet: '3ベット',
   call: 'コール',
   fold: 'フォールド',
+  // 試験モードで制限時間が切れたぶん。人が選んだ答えではないので言い方を分ける。
+  [TIMEOUT_ACTION]: '時間切れ',
 }
 
 // サイズのドリルは action の id がそのまま額 ('7.5bb') なので、固定表からは引けない。
@@ -25,6 +27,13 @@ const actionLabelOf = (drill, actionId) => {
   const action = drill.actions.find((a) => a.id === actionId)
   return action ? action.label : ACTION_LABELS[actionId]
 }
+
+// ミス 1 件の言い方。ミス履歴と試験の結果が同じ文面を使う。
+// 時間切れは「答えた」ではないので、そこだけ言い換える。
+const missAnswerText = (drill, chosenAction, correctAction) =>
+  chosenAction === TIMEOUT_ACTION
+    ? `時間切れ (正解 ${actionLabelOf(drill, correctAction)})`
+    : `${actionLabelOf(drill, chosenAction)} と答えた (正解 ${actionLabelOf(drill, correctAction)})`
 
 const el = {
   modes: document.getElementById('modes'),
@@ -152,9 +161,105 @@ const el = {
   bluffResult: document.getElementById('bluff-result'),
   bluffScore: document.getElementById('bluff-score'),
   bluffNext: document.getElementById('bluff-next'),
+  bluffPick: document.getElementById('bluffpick'),
+  bluffPickSpot: document.getElementById('bluffpick-spot'),
+  bluffPickChoices: document.getElementById('bluffpick-choices'),
+  bluffPickResult: document.getElementById('bluffpick-result'),
+  bluffPickScore: document.getElementById('bluffpick-score'),
+  bluffPickNext: document.getElementById('bluffpick-next'),
+  exam: document.getElementById('exam'),
+  examLead: document.getElementById('exam-lead'),
+  examStart: document.getElementById('exam-start'),
+  examBegin: document.getElementById('exam-begin'),
+  examRun: document.getElementById('exam-run'),
+  examBar: document.getElementById('exam-bar'),
+  examClock: document.getElementById('exam-clock'),
+  examProgress: document.getElementById('exam-progress'),
+  examSpot: document.getElementById('exam-spot'),
+  examCards: document.getElementById('exam-cards'),
+  examHand: document.getElementById('exam-hand'),
+  examActions: document.getElementById('exam-actions'),
+  examAbort: document.getElementById('exam-abort'),
+  examResult: document.getElementById('exam-result'),
+  examScore: document.getElementById('exam-score'),
+  examMisses: document.getElementById('exam-misses'),
+  examAgain: document.getElementById('exam-again'),
 }
 
 const NS = 'http://www.w3.org/2000/svg'
+
+// ---- 手札とアクションのボタン ----
+//
+// 出題カードと試験モードが同じ見た目を使う (別々に書くと、片方だけ直したときに食い違う)。
+
+const renderCardsInto = (target, hand) => {
+  target.innerHTML = ''
+  for (const card of dealCards(hand)) {
+    const node = document.createElement('div')
+    node.className = `playing-card ${card.suit.color}`
+
+    const corner = document.createElement('div')
+    corner.className = 'corner'
+    corner.textContent = card.rank
+
+    const pip = document.createElement('span')
+    pip.className = 'pip'
+    pip.textContent = card.suit.glyph
+    corner.appendChild(pip)
+
+    const center = document.createElement('div')
+    center.className = 'center'
+    center.textContent = card.suit.glyph
+
+    node.appendChild(corner)
+    node.appendChild(center)
+    target.appendChild(node)
+  }
+}
+
+// 手札の文字表記 ('AKs' → AK + 小さい s)。カードの絵と同じ場所で使う。
+const renderHandTextInto = (target, hand) => {
+  target.innerHTML = ''
+  const base = document.createElement('span')
+  base.textContent = isPair(hand) ? hand : hand.slice(0, 2)
+  target.appendChild(base)
+  if (!isPair(hand)) {
+    const suffix = document.createElement('span')
+    suffix.className = 'suffix'
+    suffix.textContent = hand[2]
+    target.appendChild(suffix)
+  }
+}
+
+const renderActionsInto = (target, drill, onAnswer) => {
+  target.innerHTML = ''
+  for (const action of drill.actions) {
+    const button = document.createElement('button')
+    button.className = `action-btn tone-${action.tone}`
+    button.dataset.action = action.id
+
+    const label = document.createElement('span')
+    label.textContent = action.label
+    button.appendChild(label)
+
+    // サイズの選択肢には「実際に手元から出る額」を添える。
+    // ブラインドはすでに払い込んでいるので、10bb にするのに 10bb 出すわけではない。
+    if (action.tone === 'size') {
+      const sub = document.createElement('span')
+      sub.className = 'action-sub'
+      sub.textContent = `追加 ${fmtBb(chipsToPut(drill, action.id))}`
+      button.appendChild(sub)
+    }
+
+    const key = document.createElement('span')
+    key.className = 'key'
+    key.textContent = action.hotkey.toUpperCase()
+    button.appendChild(key)
+
+    button.addEventListener('click', () => onAnswer(action.id))
+    target.appendChild(button)
+  }
+}
 
 // ---- 本文の用語リンク (ウィキ風) ----
 // 説明文の中の専門用語をタップできるようにする。タップの先 (早見表の用語タブを開く) は

@@ -215,6 +215,19 @@ document.addEventListener('keydown', (event) => {
   if (isTypingTarget(event.target)) return
   const key = event.key.toLowerCase()
 
+  // 試験中はホットキーを試験に回す。ここで分けないと、試験を見ながら押した f が
+  // 裏で待っている練習問題の答えとして記録される (検索欄のガードと同じ事故)。
+  const examQuestion = examCurrent(exam)
+  if (examQuestion) {
+    const examDrill = DRILL_BY_KEY[examQuestion.drillKey]
+    const examAction = examDrill.actions.find((a) => a.hotkey === key)
+    if (examAction) {
+      event.preventDefault()
+      answerExam(examAction.id)
+    }
+    return
+  }
+
   if (!answered && current) {
     const drill = DRILL_BY_KEY[current.drillKey]
     const action = drill.actions.find((a) => a.hotkey === key)
@@ -395,6 +408,118 @@ function answerBluff(roleId) {
 
 el.bluffNext.addEventListener('click', nextBluff)
 
+// ---- どれがブラフか (4択) ----
+// 役割クイズと同じ形。セッション内のスコアだけ持つ一時状態。
+
+let bluffPick = null
+
+const drawBluffPick = () => renderBluffPick(state, bluffPick, { onAnswer: answerBluffPick })
+
+function nextBluffPick() {
+  const score = bluffPick ? bluffPick.score : { asked: 0, correct: 0 }
+  bluffPick = { ...randomBluffPick(), score }
+  drawBluffPick()
+}
+
+function answerBluffPick(hand) {
+  if (!bluffPick || bluffPick.chosen !== null) return
+  bluffPick = {
+    ...bluffPick,
+    chosen: hand,
+    score: {
+      asked: bluffPick.score.asked + 1,
+      correct: bluffPick.score.correct + (hand === bluffPick.hand ? 1 : 0),
+    },
+  }
+  drawBluffPick()
+}
+
+el.bluffPickNext.addEventListener('click', nextBluffPick)
+
+// ---- 試験モード ----
+//
+// 20 問走り切るまで正誤を出さず、成績に書くのも最後の 1 回だけ (中断したぶんは記録しない)。
+// 時計は 1 問ごとに EXAM_TICK_MS 刻みで進める setTimeout の連鎖で、
+// 答えた瞬間と中止した瞬間に必ず止める (止め忘れると裏で次の問題が時間切れになる)。
+
+let exam = null
+let examTimer = null
+
+const drawExam = () => renderExam(exam, { onAnswer: answerExam })
+
+const stopExamClock = () => {
+  if (examTimer === null) return
+  clearTimeout(examTimer)
+  examTimer = null
+}
+
+const startExamClock = () => {
+  stopExamClock()
+  if (!examCurrent(exam)) return
+  examTimer = setTimeout(tickExam, EXAM_TICK_MS)
+}
+
+// 試験が 1 手進んだあとの共通処理。終わっていれば採点して成績へ、続くなら時計を回し直す。
+const afterExamStep = () => {
+  if (exam.result) {
+    stopExamClock()
+    // 20 問ぶんをまとめて 1 回で保存する (問題ごとに書くと中断が半端に残る)
+    commit(bumpDailyStreak(recordExam(state, exam)))
+    drawExam()
+    renderStreak(state)
+    renderDashboard(state, selectFocus)
+    renderDaily(state, startDailyTask)
+    return
+  }
+  drawExam()
+  startExamClock()
+}
+
+function tickExam() {
+  examTimer = null
+  if (!examCurrent(exam)) return
+
+  const index = exam.index
+  exam = examTick(exam)
+
+  // まだ同じ問題なら時計だけ描き直す (毎回全部描くとカードとボタンが作り直される)
+  if (!exam.result && exam.index === index) {
+    renderExamClock(exam)
+    startExamClock()
+    return
+  }
+  afterExamStep()
+}
+
+function answerExam(actionId) {
+  if (!examCurrent(exam)) return
+  exam = examRecord(exam, actionId)
+  afterExamStep()
+}
+
+function startExam() {
+  exam = freshExam()
+  drawExam()
+  startExamClock()
+}
+
+// 中止したぶんは成績に入れない (途中まで走った試験を半端に記録しない)
+function abortExam() {
+  stopExamClock()
+  exam = null
+  drawExam()
+}
+
+// カードを閉じたら中止する。見えないところで時計が回り続けると、
+// 残り全部が時間切れになって復習キューに積まれる。
+el.exam.addEventListener('toggle', () => {
+  if (!el.exam.open && exam) abortExam()
+})
+
+el.examBegin.addEventListener('click', startExam)
+el.examAgain.addEventListener('click', startExam)
+el.examAbort.addEventListener('click', abortExam)
+
 // ---- エクイティ電卓 ----
 
 let calcRangeId = 'UTG'
@@ -474,6 +599,8 @@ renderWhenOpened(el.mistakes, renderMistakes)
 renderWhenOpened(el.equity, () => renderEquity(equityHand, pickEquityHand))
 renderWhenOpened(el.fill, () => startFill(DRILLS[0].key))
 renderWhenOpened(el.bluffq, nextBluff)
+renderWhenOpened(el.bluffPick, nextBluffPick)
+renderWhenOpened(el.exam, drawExam)
 renderWhenOpened(el.calc, drawCalc)
 renderWhenOpened(el.nash, drawNash)
 renderWhenOpened(el.growth, () => renderGrowth(growthStep, selectGrowthStep))
