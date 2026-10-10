@@ -3,7 +3,13 @@
 6-max テキサスホールデムのプリフロップ・レンジを覚えるトレーナー。ビルド不要の静的サイト。
 
 配布先 = GitHub Pages https://tany0131.github.io/poker-range-trainer/
-(push で Actions が verify → build → verify-bundle → deploy)。
+(master への push で Actions が verify → build → verify-bundle → deploy)。
+
+**master は枝の保護つき** (2026-10-10・棚#863): PR 必須・直 push 禁止・force push 禁止・削除禁止で、
+管理者 (本人) にも効く。承認は 0 件でよい (一人運用なので自分の PR を承認できない) — つまり
+PR からのマージ自体は止まらないので、マージは査読の緑を見てからスピカがやる流れを守る。
+作業は枝を切って PR で出す。Actions は master への push でしか走らないので、PR に CI の緑は付かない
+(手元で出荷手順の 3 つを通すのが唯一の検証)。
 Artifact 版は移行期間だけ併存 (URL は会話ログにある)。
 
 ## 出荷手順 (必ずこの順)
@@ -14,8 +20,8 @@ node tools/build.mjs         # 単一 HTML に畳む → dist/
 node tools/verify-bundle.mjs # 畳んだ後のバンドルを実行して再検証
 ```
 
-**`dist/` はコミットしない** (.gitignore 済み)。Actions が push のたびにその場で畳んで配る。
-手元で 3 つ通してから push する — CI で落ちるのは、通していないのと同じ。
+**`dist/` はコミットしない** (.gitignore 済み)。Actions が master への push (= PR のマージ) のたびにその場で畳んで配る。
+手元で 3 つ通してから PR を出す — CI で落ちるのは、通していないのと同じ。
 
 `verify-bundle.mjs` を省略しないこと。ソースが通ってもインライン化で順序が壊れる事故は起きる。
 
